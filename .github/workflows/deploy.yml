@@ -1,0 +1,23 @@
+name: Deploy to NAS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Build and Push Backend Image
+        run: |
+          docker build -t my-nas-registry/voyage-guyane-backend:latest ./backend
+          docker push my-nas-registry/voyage-guyane-backend:latest
+
+      - name: Build and Push Frontend Image
+        run: |
+          docker build -t my-nas-registry/voyage-guyane-frontend:latest ./frontend
+          docker push my-nas-registry/voyage-guyane-frontend:latest

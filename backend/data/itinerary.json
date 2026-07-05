@@ -1,0 +1,90 @@
+[
+  {
+    "id": 1,
+    "date": "2026-07-16",
+    "day": "16 Juillet",
+    "title": "Kayak au Barrage de Petit-Saut",
+    "description": "Kayak guidé dans la forêt submergée.",
+    "location": "Barrage de Petit-Saut",
+    "providers": ["Kano Dilo", "Micanoë"],
+    "price": 44,
+    "coordinates": [5.0667, -53.05]
+  },
+  {
+    "id": 2,
+    "date": "2026-07-17",
+    "day": "17 Juillet",
+    "title": "Îles du Salut",
+    "description": "Journée complète aux Îles du Salut, avec une traversée en catamaran.",
+    "location": "Kourou",
+    "providers": ["Catamaran"],
+    "price": 40,
+    "coordinates": [5.2833, -52.5833]
+  },
+  {
+    "id": 3,
+    "date": "2026-07-18",
+    "day": "18 Juillet",
+    "title": "Espace et Faune",
+    "description": "Matin : Visite du Centre Spatial Guyanais (7€). Après-midi : Visite du Zoo de Guyane (16.5€).",
+    "location": "Kourou / Macouria",
+    "providers": ["Centre Spatial Guyanais", "Zoo de Guyane"],
+    "price": 23.5,
+    "coordinates": [5.1611, -52.6492]
+  },
+  {
+    "id": 4,
+    "date": "2026-07-19",
+    "day": "19 Juillet",
+    "title": "Immersion au Marais de Kaw",
+    "description": "Départ pour le Marais de Kaw. Nuit immersive en formule Tout Inclus à l'Écolodge flottant Caïman.",
+    "location": "Marais de Kaw",
+    "providers": ["Écolodge flottant Caïman"],
+    "price": 150,
+    "coordinates": [4.4833, -52.0333]
+  },
+  {
+    "id": 5,
+    "date": "2026-07-20",
+    "day": "20 Juillet",
+    "title": "Du Brésil au Bivouac",
+    "description": "Sortie des marais, route vers le Brésil (Oiapoque via le Pont de l'Oyapock) pour l'après-midi. Fin de journée : Randonnée et Bivouac en hamac au sommet de la Savane Roche Virginie.",
+    "location": "Oiapoque / Régina",
+    "providers": ["Savane Roche Virginie"],
+    "price": 0,
+    "coordinates": [3.8433, -51.8333]
+  },
+  {
+    "id": 6,
+    "date": "2026-07-21",
+    "day": "21 Juillet",
+    "title": "Retour à Matoury",
+    "description": "Descente de la Savane Roche le matin. Retour au pied-à-terre chez l'oncle à Matoury.",
+    "location": "Matoury",
+    "providers": [],
+    "price": 0,
+    "coordinates": [4.85, -52.3333]
+  },
+  {
+    "id": 7,
+    "date": "2026-07-22",
+    "day": "22 Juillet",
+    "title": "Îlet la Mère et Saïmiris",
+    "description": "Excursion à l'Îlet la Mère depuis Dégrad des Cannes pour voir les singes Saïmiris.",
+    "location": "Îlet la Mère",
+    "providers": ["Tropic Alizés", "Guyane Évasion"],
+    "price": 40,
+    "coordinates": [4.9, -52.2]
+  },
+  {
+    "id": 8,
+    "date": "2026-07-23",
+    "day": "23 Juillet",
+    "title": "Fin de séjour sportive",
+    "description": "Randonnées locales libres (Sentier du Rorota, Salines) et fin du séjour.",
+    "location": "Rémire-Montjoly",
+    "providers": ["Sentier du Rorota"],
+    "price": 0,
+    "coordinates": [4.9, -52.2667]
+  }
+]
