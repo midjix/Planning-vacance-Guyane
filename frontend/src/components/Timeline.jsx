@@ -9,7 +9,18 @@ const Timeline = ({ itinerary }) => {
           <div key={day.id} className="mb-8 relative">
             <div className="absolute -left-[2.1rem] top-1 w-4 h-4 bg-nature-light rounded-full border-2 border-nature-dark"></div>
             <div className="bg-nature p-4 rounded-lg shadow-md border border-nature-light hover:bg-nature-light transition-colors">
-              <h3 className="text-xl font-bold text-white">{day.day} : {day.title}</h3>
+              <div className="flex justify-between items-start mb-2">
+                <h3 className="text-xl font-bold text-white">{day.day} : {day.title}</h3>
+                {day.status && (
+                  <span className={`px-2 py-1 text-xs font-bold rounded-full border ${
+                    day.status === 'RÉSERVÉ' ? 'bg-green-900/50 text-green-400 border-green-500' :
+                    day.status.includes('Validé') ? 'bg-blue-900/50 text-blue-400 border-blue-500' :
+                    'bg-yellow-900/50 text-yellow-400 border-yellow-500'
+                  }`}>
+                    {day.status.toUpperCase()}
+                  </span>
+                )}
+              </div>
               <p className="text-nature-earth font-semibold mb-2">{day.location}</p>
               <p className="text-gray-200 mb-2">{day.description}</p>
               {day.providers.length > 0 && (
