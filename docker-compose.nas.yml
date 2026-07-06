@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  backend:
+    # Remplace <TON_NOM_UTILISATEUR> par ton nom d'utilisateur GitHub
+    # L'image doit être publiée sur GitHub Container Registry (ghcr.io)
+    image: ghcr.io/midjix/voyage-guyane-backend:latest
+    container_name: voyage-guyane-backend
+    ports:
+      - "8081:8081"
+    environment:
+      - PORT=8081
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/midjix/voyage-guyane-frontend:latest
+    container_name: voyage-guyane-frontend
+    ports:
+      - "3001:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Watchtower s'occupe de vérifier s'il y a de nouvelles images sur GitHub
+  # et de redémarrer automatiquement les conteneurs avec la nouvelle version.
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Vérifie les mises à jour toutes les heures (3600 secondes)
+    # Tu peux ajuster ce délai selon tes besoins (ex: 300 pour 5 min)
+    command: --interval 30
+    restart: unless-stopped
+    # Décommente et remplis ces lignes si ton dépôt GitHub est PRIVÉ
+    # environment:
+    #   - REPO_USER=<TON_NOM_UTILISATEUR>
+    #   - REPO_PASS=<TON_TOKEN_GITHUB_CLASSIC>
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token eyJhIjoiMDhlODBlY2ZkYjc2ZmJlMTM1Nzg2NjA1OTQzNWIxM2EiLCJ0IjoiZGMyMmU5ZWEtMjEyZS00NjU2LTlmOGUtODU1Y2IyY2MwM2Q4IiwicyI6Ik5UTTVNR0l6TVRrdE9XUmpOaTAwTWpGbExXRmpOVGN0WmpCak5XSmlaV1ZsWXpjdyJ9
