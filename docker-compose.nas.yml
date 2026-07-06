@@ -10,8 +10,6 @@ services:
       - "8081:8081"
     environment:
       - PORT=8081
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     restart: unless-stopped
 
   frontend:
@@ -21,8 +19,6 @@ services:
       - "3001:80"
     depends_on:
       - backend
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     restart: unless-stopped
 
   # Watchtower s'occupe de vérifier s'il y a de nouvelles images sur GitHub
@@ -34,7 +30,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     # Vérifie les mises à jour toutes les heures (3600 secondes)
     # Tu peux ajuster ce délai selon tes besoins (ex: 300 pour 5 min)
-    command: --interval 30 --label-enable
+    command: --interval 30 voyage-guyane-backend voyage-guyane-frontend
     restart: unless-stopped
     # Décommente et remplis ces lignes si ton dépôt GitHub est PRIVÉ
     # environment:
