@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import Timeline from './components/Timeline';
 import InteractiveMap from './components/InteractiveMap';
 import { Compass, Map as MapIcon, Calendar } from 'lucide-react';
@@ -89,6 +90,7 @@ function App() {
 
       <footer className="bg-black py-8 text-center text-gray-500">
         <p>Généré par votre Superviseur IA. Prêt pour l'aventure !</p>
+        <Link to="/admin" className="text-gray-700 hover:text-gray-400 text-xs mt-2 inline-block transition-colors">Admin</Link>
       </footer>
     </div>
   );

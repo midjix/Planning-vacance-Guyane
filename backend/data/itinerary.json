@@ -9,7 +9,12 @@
     "providers": ["Kano Dilo", "Micanoë"],
     "price": 80,
     "status": "À réserver",
-    "coordinates": [5.0667, -53.05]
+    "coordinates": [5.0667, -53.05],
+    "accommodation": {
+      "name": "Matoury (Chez l'oncle)",
+      "coordinates": [4.85, -52.3333],
+      "isActivityAccommodation": false
+    }
   },
   {
     "id": 2,
@@ -21,7 +26,12 @@
     "providers": ["Catamaran"],
     "price": 45,
     "status": "À réserver",
-    "coordinates": [5.2833, -52.5833]
+    "coordinates": [5.2833, -52.5833],
+    "accommodation": {
+      "name": "Matoury (Chez l'oncle)",
+      "coordinates": [4.85, -52.3333],
+      "isActivityAccommodation": false
+    }
   },
   {
     "id": 3,
@@ -33,7 +43,12 @@
     "providers": ["Centre Spatial Guyanais", "Zoo de Guyane"],
     "price": 30,
     "status": "À réserver / À faire",
-    "coordinates": [5.1611, -52.6492]
+    "coordinates": [5.1611, -52.6492],
+    "accommodation": {
+      "name": "Matoury (Chez l'oncle)",
+      "coordinates": [4.85, -52.3333],
+      "isActivityAccommodation": false
+    }
   },
   {
     "id": 4,
@@ -45,7 +60,12 @@
     "providers": ["Écolodge flottant Caïman"],
     "price": 189,
     "status": "RÉSERVÉ",
-    "coordinates": [4.4833, -52.0333]
+    "coordinates": [4.4833, -52.0333],
+    "accommodation": {
+      "name": "Écolodge flottant Caïman",
+      "coordinates": [4.4833, -52.0333],
+      "isActivityAccommodation": true
+    }
   },
   {
     "id": 5,
@@ -57,7 +77,12 @@
     "providers": [],
     "price": 0,
     "status": "À faire / Validé",
-    "coordinates": [3.8433, -51.8333]
+    "coordinates": [3.8433, -51.8333],
+    "accommodation": {
+      "name": "Bivouac Savane Roche Virginie",
+      "coordinates": [4.2333, -52.1167],
+      "isActivityAccommodation": true
+    }
   },
   {
     "id": 6,
@@ -69,7 +94,12 @@
     "providers": [],
     "price": 0,
     "status": "Validé",
-    "coordinates": [4.85, -52.3333]
+    "coordinates": [4.85, -52.3333],
+    "accommodation": {
+      "name": "Matoury (Chez l'oncle)",
+      "coordinates": [4.85, -52.3333],
+      "isActivityAccommodation": false
+    }
   },
   {
     "id": 7,
@@ -81,7 +111,12 @@
     "providers": ["Tropic Alizés", "Guyane Évasion"],
     "price": 45,
     "status": "À réserver",
-    "coordinates": [4.9, -52.2]
+    "coordinates": [4.9, -52.2],
+    "accommodation": {
+      "name": "Matoury (Chez l'oncle)",
+      "coordinates": [4.85, -52.3333],
+      "isActivityAccommodation": false
+    }
   },
   {
     "id": 8,
@@ -93,6 +128,7 @@
     "providers": [],
     "price": 0,
     "status": "À faire",
-    "coordinates": [4.9, -52.2667]
+    "coordinates": [4.9, -52.2667],
+    "accommodation": null
   }
 ]

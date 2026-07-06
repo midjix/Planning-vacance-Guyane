@@ -1,4 +1,5 @@
 import React from 'react';
+import { Home } from 'lucide-react';
 
 const Timeline = ({ itinerary }) => {
   return (
@@ -12,7 +13,7 @@ const Timeline = ({ itinerary }) => {
               <div className="flex justify-between items-start mb-2">
                 <h3 className="text-xl font-bold text-white">{day.day} : {day.title}</h3>
                 {day.status && (
-                  <span className={`px-2 py-1 text-xs font-bold rounded-full border ${
+                  <span className={`px-2 py-1 text-xs font-bold rounded-full border shrink-0 ml-2 ${
                     day.status === 'RÉSERVÉ' ? 'bg-green-900/50 text-green-400 border-green-500' :
                     day.status.includes('Validé') ? 'bg-blue-900/50 text-blue-400 border-blue-500' :
                     'bg-yellow-900/50 text-yellow-400 border-yellow-500'
@@ -23,12 +24,32 @@ const Timeline = ({ itinerary }) => {
               </div>
               <p className="text-nature-earth font-semibold mb-2">{day.location}</p>
               <p className="text-gray-200 mb-2">{day.description}</p>
-              {day.providers.length > 0 && (
+              {day.providers && day.providers.length > 0 && (
                 <p className="text-sm text-gray-300">Prestataires : {day.providers.join(', ')}</p>
               )}
               {day.price > 0 && (
                 <p className="text-sm font-bold text-yellow-400 mt-2">Prix : {day.price}€</p>
               )}
+
+              {/* Hébergement */}
+              <div className="mt-3 pt-3 border-t border-nature-light/30">
+                {day.accommodation === null || day.accommodation === undefined ? (
+                  <div className="flex items-center gap-2 text-orange-400 text-sm">
+                    <Home className="w-4 h-4" />
+                    <span className="font-medium">Hébergement : À prévoir</span>
+                  </div>
+                ) : day.accommodation.isActivityAccommodation ? (
+                  <div className="flex items-center gap-2 text-green-400 text-sm">
+                    <Home className="w-4 h-4" />
+                    <span className="font-medium">Nuit sur place</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-blue-400 text-sm">
+                    <Home className="w-4 h-4" />
+                    <span className="font-medium">Nuit à {day.accommodation.name || '(non renseigné)'}</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         ))}
