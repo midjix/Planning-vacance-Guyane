@@ -9,8 +9,8 @@ function App() {
 
   useEffect(() => {
     // Dans docker ou local, on pointe sur le backend (port 8081 en dev, ou nginx pass)
-    // Pour simplifier l'exemple local, on pointe vers localhost:8081
-    fetch('http://localhost:8081/api/itinerary')
+    // L'appel passe par nginx qui redirige vers le backend via le proxy
+    fetch('/api/itinerary')
       .then(res => res.json())
       .then(data => {
         setItinerary(data);

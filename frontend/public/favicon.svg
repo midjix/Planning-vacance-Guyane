@@ -1,3 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <text y=".9em" font-size="90">🌴</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Trunk -->
+  <path d="M30 58 Q32 35 34 28 Q33 35 30 58Z" fill="#8B5A2B"/>
+  <path d="M34 58 Q32 35 30 28 Q31 35 34 58Z" fill="#6B3A1B"/>
+  <!-- Leaves -->
+  <path d="M32 28 Q20 18 8 22 Q18 16 32 20Z" fill="#2E7D32"/>
+  <path d="M32 28 Q44 18 56 22 Q46 16 32 20Z" fill="#388E3C"/>
+  <path d="M32 28 Q22 12 14 8 Q22 10 32 18Z" fill="#1B5E20"/>
+  <path d="M32 28 Q42 12 50 8 Q42 10 32 18Z" fill="#2E7D32"/>
+  <path d="M32 28 Q32 10 32 4 Q34 10 34 28Z" fill="#388E3C"/>
+  <!-- Coconuts -->
+  <circle cx="29" cy="26" r="3" fill="#8B5A2B"/>
+  <circle cx="35" cy="26" r="3" fill="#6B3A1B"/>
 </svg>
