@@ -10,6 +10,9 @@ services:
       - "8081:8081"
     environment:
       - PORT=8081
+    volumes:
+      # Persiste les données modifiées via l'admin (sinon perdues à chaque mise à jour)
+      - backend-data:/app/data
     restart: unless-stopped
 
   frontend:
@@ -42,3 +45,6 @@ services:
     container_name: tunnel
     restart: unless-stopped
     command: tunnel --no-autoupdate run --token eyJhIjoiMDhlODBlY2ZkYjc2ZmJlMTM1Nzg2NjA1OTQzNWIxM2EiLCJ0IjoiZGMyMmU5ZWEtMjEyZS00NjU2LTlmOGUtODU1Y2IyY2MwM2Q4IiwicyI6Ik5UTTVNR0l6TVRrdE9XUmpOaTAwTWpGbExXRmpOVGN0WmpCak5XSmlaV1ZsWXpjdyJ9
+
+volumes:
+  backend-data:
