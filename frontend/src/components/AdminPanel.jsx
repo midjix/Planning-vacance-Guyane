@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Save, Trash2, Plus, LogOut, ChevronDown, ChevronUp, Home, MapPin, Users, List, BarChart } from 'lucide-react';
 import AdminUsers from './AdminUsers';
 import AdminStats from './AdminStats';
+import AdminProfile from './AdminProfile';
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '—';
@@ -25,13 +26,22 @@ const AdminPanel = () => {
   const navigate = useNavigate();
 
   const token = localStorage.getItem('adminToken');
+  const role = localStorage.getItem('adminRole');
 
   useEffect(() => {
     if (!token) {
       navigate('/admin');
       return;
+      return;
     }
-    fetchItinerary();
+    // L'utilisateur normal n'a pas besoin de l'itinéraire, mais ça ne casse rien de le cacher.
+    // Pour éviter une erreur 403 s'il est simple user, on ne fetch que si admin.
+    if (role === 'admin') {
+      fetchItinerary();
+    } else {
+      setLoading(false);
+      setActiveTab('profile');
+    }
   }, []);
 
   const fetchItinerary = async () => {
@@ -55,6 +65,7 @@ const AdminPanel = () => {
   const handleLogout = () => {
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminUsername');
+    localStorage.removeItem('adminRole');
     navigate('/admin');
   };
 
@@ -214,8 +225,10 @@ const AdminPanel = () => {
       <header className="sticky top-0 z-50 bg-nature-dark/95 backdrop-blur-sm border-b border-nature-light">
         <div className="max-w-6xl mx-auto px-4 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="text-center md:text-left">
-            <h1 className="text-2xl font-bold text-white">🌴 Admin — Guyane 2026</h1>
-            <p className="text-sm text-gray-400">{itinerary.length} activités • Budget total : {itinerary.reduce((s, i) => s + (i.price || 0), 0)} €</p>
+            <h1 className="text-2xl font-bold text-white">🌴 {role === 'admin' ? 'Admin' : 'Mon Espace'} — Guyane 2026</h1>
+            {role === 'admin' && (
+              <p className="text-sm text-gray-400">{itinerary.length} activités • Budget total : {itinerary.reduce((s, i) => s + (i.price || 0), 0)} €</p>
+            )}
           </div>
           <div className="flex gap-3">
             <a
@@ -252,41 +265,61 @@ const AdminPanel = () => {
         {/* Navigation Tabs */}
         <div className="flex border-b border-nature-light mb-6 overflow-x-auto whitespace-nowrap scrollbar-hide">
           <button
-            onClick={() => setActiveTab('activities')}
+            onClick={() => setActiveTab('profile')}
             className={`flex items-center gap-2 px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
-              activeTab === 'activities' 
+              activeTab === 'profile' 
                 ? 'border-green-500 text-green-400 bg-green-500/10' 
                 : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/5'
             }`}
           >
-            <List className="w-4 h-4" />
-            Activités & Hébergements
+            <User className="w-4 h-4" />
+            Mon Profil
           </button>
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`flex items-center gap-2 px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
-              activeTab === 'users' 
-                ? 'border-green-500 text-green-400 bg-green-500/10' 
-                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/5'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            Utilisateurs
-          </button>
-          <button
-            onClick={() => setActiveTab('stats')}
-            className={`flex items-center gap-2 px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
-              activeTab === 'stats' 
-                ? 'border-green-500 text-green-400 bg-green-500/10' 
-                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/5'
-            }`}
-          >
-            <BarChart className="w-4 h-4" />
-            Statistiques
-          </button>
+          
+          {role === 'admin' && (
+            <>
+              <button
+                onClick={() => setActiveTab('activities')}
+                className={`flex items-center gap-2 px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
+                  activeTab === 'activities' 
+                    ? 'border-green-500 text-green-400 bg-green-500/10' 
+                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                }`}
+              >
+                <List className="w-4 h-4" />
+                Activités & Hébergements
+              </button>
+              <button
+                onClick={() => setActiveTab('users')}
+                className={`flex items-center gap-2 px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
+                  activeTab === 'users' 
+                    ? 'border-green-500 text-green-400 bg-green-500/10' 
+                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                Utilisateurs
+              </button>
+              <button
+                onClick={() => setActiveTab('stats')}
+                className={`flex items-center gap-2 px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
+                  activeTab === 'stats' 
+                    ? 'border-green-500 text-green-400 bg-green-500/10' 
+                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                }`}
+              >
+                <BarChart className="w-4 h-4" />
+                Statistiques
+              </button>
+            </>
+          )}
         </div>
 
-        {activeTab === 'activities' && (
+        {activeTab === 'profile' && (
+          <AdminProfile token={token} showMessage={showMessage} />
+        )}
+
+        {role === 'admin' && activeTab === 'activities' && (
           <div className="space-y-4">
             {itinerary.map((item) => (
           <div

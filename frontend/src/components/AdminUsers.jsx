@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, Plus, UserPlus, Shield } from 'lucide-react';
+import { UserPlus, Shield, Trash2, Plus, ArrowLeftRight } from 'lucide-react';
 
 const AdminUsers = ({ token, showMessage, handleLogout }) => {
   const [users, setUsers] = useState([]);
@@ -59,6 +59,30 @@ const AdminUsers = ({ token, showMessage, handleLogout }) => {
       showMessage(err.message, 'error');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleToggleRole = async (id, currentRole) => {
+    const newRole = currentRole === 'admin' ? 'user' : 'admin';
+    try {
+      const res = await fetch(`/api/admin/users/${id}/role`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ role: newRole })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Erreur lors du changement de rôle');
+      }
+
+      setUsers(users.map(u => u.id === id ? { ...u, role: newRole } : u));
+      showMessage(`Rôle de l'utilisateur modifié`);
+    } catch (err) {
+      showMessage(err.message, 'error');
     }
   };
 
@@ -147,13 +171,23 @@ const AdminUsers = ({ token, showMessage, handleLogout }) => {
               </div>
               
               {user.id !== 1 && (
-                <button
-                  onClick={() => handleDeleteUser(user.id, user.username)}
-                  className="p-2 text-red-400 hover:bg-red-900/30 rounded-lg transition-colors"
-                  title="Supprimer"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleToggleRole(user.id, user.role)}
+                    className="p-2 text-blue-400 hover:bg-blue-900/30 rounded-lg transition-colors flex items-center gap-1 text-xs font-medium"
+                    title={user.role === 'admin' ? 'Passer User' : 'Passer Admin'}
+                  >
+                    <ArrowLeftRight className="w-4 h-4" />
+                    {user.role === 'admin' ? 'Retirer Admin' : 'Rendre Admin'}
+                  </button>
+                  <button
+                    onClick={() => handleDeleteUser(user.id, user.username)}
+                    className="p-2 text-red-400 hover:bg-red-900/30 rounded-lg transition-colors"
+                    title="Supprimer"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
               )}
               {user.id === 1 && (
                 <span className="text-xs bg-green-900/30 text-green-500 px-2 py-1 rounded-full border border-green-500/50">Compte Principal</span>

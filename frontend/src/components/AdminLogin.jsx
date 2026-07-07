@@ -26,6 +26,7 @@ const AdminLogin = () => {
       if (res.ok) {
         localStorage.setItem('adminToken', data.token);
         localStorage.setItem('adminUsername', data.username);
+        localStorage.setItem('adminRole', data.role);
         navigate('/admin/panel');
       } else {
         setError(data.error || 'Identifiants incorrects');

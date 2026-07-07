@@ -78,6 +78,14 @@ function authMiddleware(req, res, next) {
   }
 }
 
+// Middleware pour restreindre l'accès aux administrateurs
+function adminOnly(req, res, next) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Accès refusé. Réservé aux administrateurs.' });
+  }
+  next();
+}
+
 // ==================== ROUTES PUBLIQUES ====================
 
 // Endpoint pour récupérer l'itinéraire
@@ -130,7 +138,7 @@ app.post('/api/admin/login', (req, res) => {
 // ==================== ROUTES STATISTIQUES ====================
 
 // Récupérer les statistiques
-app.get('/api/admin/analytics', authMiddleware, (req, res) => {
+app.get('/api/admin/analytics', authMiddleware, adminOnly, (req, res) => {
   try {
     const analytics = readAnalytics();
     res.json(analytics);
@@ -142,7 +150,7 @@ app.get('/api/admin/analytics', authMiddleware, (req, res) => {
 // ==================== ROUTES UTILISATEURS ====================
 
 // Lister les utilisateurs
-app.get('/api/admin/users', authMiddleware, (req, res) => {
+app.get('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
   try {
     const users = readUsers();
     // Ne pas renvoyer les hashs de mot de passe
@@ -154,7 +162,7 @@ app.get('/api/admin/users', authMiddleware, (req, res) => {
 });
 
 // Créer un utilisateur
-app.post('/api/admin/users', authMiddleware, (req, res) => {
+app.post('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
   try {
     const { username, password, role } = req.body;
     if (!username || !password) return res.status(400).json({ error: 'Données manquantes' });
@@ -181,7 +189,7 @@ app.post('/api/admin/users', authMiddleware, (req, res) => {
 });
 
 // Supprimer un utilisateur
-app.delete('/api/admin/users/:id', authMiddleware, (req, res) => {
+app.delete('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
   try {
     let users = readUsers();
     const id = parseInt(req.params.id);
@@ -199,8 +207,70 @@ app.delete('/api/admin/users/:id', authMiddleware, (req, res) => {
   }
 });
 
-// Mettre à jour une activité
-app.put('/api/admin/itinerary/:id', authMiddleware, (req, res) => {
+// Changer le rôle d'un utilisateur
+app.put('/api/admin/users/:id/role', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const users = readUsers();
+    const id = parseInt(req.params.id);
+    const { role } = req.body;
+    
+    if (!['admin', 'user'].includes(role)) {
+      return res.status(400).json({ error: 'Rôle invalide' });
+    }
+    
+    if (id === 1) {
+      return res.status(403).json({ error: 'Impossible de modifier le rôle de l\'administrateur principal' });
+    }
+    
+    const userIndex = users.findIndex(u => u.id === id);
+    if (userIndex === -1) return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    
+    users[userIndex].role = role;
+    writeUsers(users);
+    res.json({ success: true, id, role });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur lors de la modification du rôle' });
+  }
+});
+
+// Modifier son propre profil
+app.put('/api/admin/users/me', authMiddleware, (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const users = readUsers();
+    
+    const userIndex = users.findIndex(u => u.id === req.user.id);
+    if (userIndex === -1) return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    
+    // Vérifier si le nouveau nom d'utilisateur n'est pas déjà pris par un autre
+    if (username && username !== users[userIndex].username) {
+      if (users.find(u => u.username === username)) {
+        return res.status(400).json({ error: 'Nom d\'utilisateur déjà pris' });
+      }
+      users[userIndex].username = username;
+    }
+    
+    if (password) {
+      users[userIndex].passwordHash = bcrypt.hashSync(password, 10);
+    }
+    
+    writeUsers(users);
+    
+    // Renvoyer un nouveau token si le pseudo change
+    const newToken = jwt.sign(
+      { id: users[userIndex].id, username: users[userIndex].username, role: users[userIndex].role },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    res.json({ success: true, username: users[userIndex].username, token: newToken });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur lors de la mise à jour du profil' });
+  }
+});
+
+// Modifier un item du planning
+app.put('/api/admin/itinerary/:id', authMiddleware, adminOnly, (req, res) => {
   try {
     const itinerary = readItinerary();
     const id = parseInt(req.params.id);
@@ -217,8 +287,8 @@ app.put('/api/admin/itinerary/:id', authMiddleware, (req, res) => {
   }
 });
 
-// Ajouter une nouvelle activité
-app.post('/api/admin/itinerary', authMiddleware, (req, res) => {
+// Créer un item
+app.post('/api/admin/itinerary', authMiddleware, adminOnly, (req, res) => {
   try {
     const itinerary = readItinerary();
     const maxId = itinerary.reduce((max, item) => Math.max(max, item.id), 0);
@@ -243,8 +313,8 @@ app.post('/api/admin/itinerary', authMiddleware, (req, res) => {
   }
 });
 
-// Supprimer une activité
-app.delete('/api/admin/itinerary/:id', authMiddleware, (req, res) => {
+// Supprimer un item
+app.delete('/api/admin/itinerary/:id', authMiddleware, adminOnly, (req, res) => {
   try {
     let itinerary = readItinerary();
     const id = parseInt(req.params.id);

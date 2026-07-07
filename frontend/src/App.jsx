@@ -38,7 +38,7 @@ function App() {
               👋 Bonjour <strong className="text-white">{localStorage.getItem('adminUsername')}</strong>
             </span>
             <Link to="/admin/panel" className="text-xs bg-green-500 hover:bg-green-400 text-[#112211] font-bold px-3 py-1.5 rounded-full transition-colors shrink-0">
-              Espace Admin
+              {localStorage.getItem('adminRole') === 'admin' ? 'Espace Admin' : 'Mon Espace'}
             </Link>
           </div>
         ) : (
