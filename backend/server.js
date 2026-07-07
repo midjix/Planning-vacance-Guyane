@@ -11,20 +11,38 @@ const PORT = process.env.PORT || 8081;
 // Clé secrète pour JWT (en production, utiliser une variable d'environnement)
 const JWT_SECRET = process.env.JWT_SECRET || 'guyane2026-secret-key-voyage';
 
-// Mot de passe hashé (Weko@Guy973)
-const ADMIN_PASSWORD_HASH = bcrypt.hashSync('Weko@Guy973', 10);
+// Chemin vers les fichiers de données
+const ITINERARY_FILE = path.join(__dirname, 'data', 'itinerary.json');
+const USERS_FILE = path.join(__dirname, 'data', 'users.json');
 
-// Chemin vers le fichier de données
-const DATA_FILE = path.join(__dirname, 'data', 'itinerary.json');
-
-// Fonctions utilitaires pour lire/écrire le fichier JSON
+// Fonctions utilitaires pour lire/écrire les fichiers JSON
 function readItinerary() {
-  const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+  const raw = fs.readFileSync(ITINERARY_FILE, 'utf-8');
   return JSON.parse(raw);
 }
 
 function writeItinerary(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  fs.writeFileSync(ITINERARY_FILE, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+function readUsers() {
+  if (!fs.existsSync(USERS_FILE)) {
+    // Créer un utilisateur admin par défaut
+    const defaultUsers = [{
+      id: 1,
+      username: 'admin',
+      passwordHash: bcrypt.hashSync('Weko@Guy973', 10),
+      role: 'admin'
+    }];
+    fs.writeFileSync(USERS_FILE, JSON.stringify(defaultUsers, null, 2), 'utf-8');
+    return defaultUsers;
+  }
+  const raw = fs.readFileSync(USERS_FILE, 'utf-8');
+  return JSON.parse(raw);
+}
+
+function writeUsers(data) {
+  fs.writeFileSync(USERS_FILE, JSON.stringify(data, null, 2), 'utf-8');
 }
 
 app.use(cors());
@@ -67,15 +85,80 @@ app.get('/health', (req, res) => {
 
 // Login admin
 app.post('/api/admin/login', (req, res) => {
-  const { password } = req.body;
-  if (!password) {
-    return res.status(400).json({ error: 'Mot de passe requis' });
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Nom d\'utilisateur et mot de passe requis' });
   }
-  if (!bcrypt.compareSync(password, ADMIN_PASSWORD_HASH)) {
-    return res.status(401).json({ error: 'Mot de passe incorrect' });
+  
+  const users = readUsers();
+  const user = users.find(u => u.username === username);
+  
+  if (!user || !bcrypt.compareSync(password, user.passwordHash)) {
+    return res.status(401).json({ error: 'Identifiants incorrects' });
   }
-  const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
-  res.json({ token });
+  
+  const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
+  res.json({ token, username: user.username, role: user.role });
+});
+
+// ==================== ROUTES UTILISATEURS ====================
+
+// Lister les utilisateurs
+app.get('/api/admin/users', authMiddleware, (req, res) => {
+  try {
+    const users = readUsers();
+    // Ne pas renvoyer les hashs de mot de passe
+    const safeUsers = users.map(u => ({ id: u.id, username: u.username, role: u.role }));
+    res.json(safeUsers);
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur lecture des utilisateurs' });
+  }
+});
+
+// Créer un utilisateur
+app.post('/api/admin/users', authMiddleware, (req, res) => {
+  try {
+    const { username, password, role } = req.body;
+    if (!username || !password) return res.status(400).json({ error: 'Données manquantes' });
+    
+    const users = readUsers();
+    if (users.find(u => u.username === username)) {
+      return res.status(400).json({ error: 'Nom d\'utilisateur déjà pris' });
+    }
+    
+    const maxId = users.reduce((max, u) => Math.max(max, u.id), 0);
+    const newUser = {
+      id: maxId + 1,
+      username,
+      passwordHash: bcrypt.hashSync(password, 10),
+      role: role || 'user'
+    };
+    
+    users.push(newUser);
+    writeUsers(users);
+    res.status(201).json({ id: newUser.id, username: newUser.username, role: newUser.role });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur de création utilisateur' });
+  }
+});
+
+// Supprimer un utilisateur
+app.delete('/api/admin/users/:id', authMiddleware, (req, res) => {
+  try {
+    let users = readUsers();
+    const id = parseInt(req.params.id);
+    const index = users.findIndex(u => u.id === id);
+    if (index === -1) return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    
+    // Empêcher la suppression du compte principal (id 1)
+    if (id === 1) return res.status(403).json({ error: 'Impossible de supprimer l\'administrateur principal' });
+    
+    users.splice(index, 1);
+    writeUsers(users);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur de suppression' });
+  }
 });
 
 // Mettre à jour une activité

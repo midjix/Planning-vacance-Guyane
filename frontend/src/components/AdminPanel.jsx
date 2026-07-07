@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save, Trash2, Plus, LogOut, ChevronDown, ChevronUp, Home, MapPin } from 'lucide-react';
+import { Save, Trash2, Plus, LogOut, ChevronDown, ChevronUp, Home, MapPin, Users, List } from 'lucide-react';
+import AdminUsers from './AdminUsers';
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '—';
@@ -19,6 +20,7 @@ const AdminPanel = () => {
   const [saving, setSaving] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [message, setMessage] = useState(null);
+  const [activeTab, setActiveTab] = useState('activities');
   const navigate = useNavigate();
 
   const token = localStorage.getItem('adminToken');
@@ -243,8 +245,37 @@ const AdminPanel = () => {
       )}
 
       {/* Content */}
-      <main className="max-w-6xl mx-auto px-4 py-8 space-y-4">
-        {itinerary.map((item) => (
+      <main className="max-w-6xl mx-auto px-4 py-8">
+        
+        {/* Navigation Tabs */}
+        <div className="flex border-b border-nature-light mb-6">
+          <button
+            onClick={() => setActiveTab('activities')}
+            className={`flex items-center gap-2 px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
+              activeTab === 'activities' 
+                ? 'border-green-500 text-green-400 bg-green-500/10' 
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/5'
+            }`}
+          >
+            <List className="w-4 h-4" />
+            Activités & Hébergements
+          </button>
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`flex items-center gap-2 px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
+              activeTab === 'users' 
+                ? 'border-green-500 text-green-400 bg-green-500/10' 
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/5'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            Utilisateurs
+          </button>
+        </div>
+
+        {activeTab === 'activities' ? (
+          <div className="space-y-4">
+            {itinerary.map((item) => (
           <div
             key={item.id}
             className="bg-nature-dark border border-nature-light rounded-xl overflow-hidden"
@@ -499,6 +530,10 @@ const AdminPanel = () => {
           <Plus className="w-5 h-5" />
           Ajouter une activité
         </button>
+          </div>
+        ) : (
+          <AdminUsers token={token} showMessage={showMessage} handleLogout={handleLogout} />
+        )}
       </main>
     </div>
   );

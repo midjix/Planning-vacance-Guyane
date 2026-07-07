@@ -27,6 +27,18 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#112211] font-sans text-white">
+      {/* Salutation Utilisateur */}
+      {localStorage.getItem('adminUsername') && (
+        <div className="absolute top-0 left-0 w-full z-50 bg-green-900/30 backdrop-blur-sm border-b border-green-500/20 px-6 py-3 flex justify-between items-center">
+          <span className="text-sm font-medium text-green-400">
+            👋 Bonjour <strong className="text-white">{localStorage.getItem('adminUsername')}</strong>
+          </span>
+          <Link to="/admin/panel" className="text-xs bg-green-500 hover:bg-green-400 text-[#112211] font-bold px-3 py-1.5 rounded-full transition-colors">
+            Accéder à l'Admin
+          </Link>
+        </div>
+      )}
+
       {/* Header Immersif */}
       <header className="relative h-screen flex items-center justify-center bg-nature-dark overflow-hidden">
         <div className="absolute inset-0 z-0">
