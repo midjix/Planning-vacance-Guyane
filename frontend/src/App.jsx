@@ -14,7 +14,9 @@ function App() {
     fetch('/api/itinerary')
       .then(res => res.json())
       .then(data => {
-        setItinerary(data);
+        // Trier par date pour s'assurer que la timeline et la carte sont toujours chronologiques
+        const sortedData = data.sort((a, b) => new Date(a.date) - new Date(b.date));
+        setItinerary(sortedData);
         setLoading(false);
       })
       .catch(err => {

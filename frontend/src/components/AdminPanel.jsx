@@ -24,7 +24,8 @@ const AdminPanel = () => {
     try {
       const res = await fetch('/api/itinerary');
       const data = await res.json();
-      setItinerary(data);
+      const sortedData = data.sort((a, b) => new Date(a.date) - new Date(b.date));
+      setItinerary(sortedData);
       setLoading(false);
     } catch (err) {
       showMessage('Erreur de chargement', 'error');
