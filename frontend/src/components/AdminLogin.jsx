@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Lock, User, CheckCircle2 } from 'lucide-react';
 
@@ -7,7 +7,16 @@ const AdminLogin = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [mousePos, setMousePos] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      setMousePos({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -39,15 +48,26 @@ const AdminLogin = () => {
   };
 
   return (
-    <div className="min-h-screen flex bg-[#0a1a0a] text-white font-sans">
+    <div className="min-h-screen flex bg-[#0a1a0a] text-white font-sans relative overflow-hidden">
+      {/* Halo lumineux qui révèle le feuillage autour de la souris */}
+      <div className="absolute inset-0 z-0 pointer-events-none transition-opacity duration-300 opacity-60 mix-blend-screen"
+           style={{
+             backgroundImage: `url('/foliage.png')`,
+             backgroundSize: '400px',
+             maskImage: `radial-gradient(circle 350px at ${mousePos.x}px ${mousePos.y}px, rgba(0,0,0,1) 0%, transparent 80%)`,
+             WebkitMaskImage: `radial-gradient(circle 350px at ${mousePos.x}px ${mousePos.y}px, rgba(0,0,0,1) 0%, transparent 80%)`,
+           }}>
+      </div>
+
       {/* Left Pane - Branding & Info */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-[#050d05] overflow-hidden flex-col justify-center px-12 xl:px-24">
+      <div className="hidden lg:flex lg:w-1/2 relative bg-[#050d05]/80 overflow-hidden flex-col justify-center px-12 xl:px-24 backdrop-blur-sm">
         {/* Abstract background elements */}
         <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-green-500/10 rounded-full blur-3xl"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl"></div>
         
         <div className="relative z-10 mb-8">
-          <h1 className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-300 mb-4 tracking-tight">
+          <div className="absolute inset-0 bg-green-500 blur-[80px] opacity-20 pointer-events-none rounded-full"></div>
+          <h1 className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-green-200 to-green-600 animate-title-shine mb-4 tracking-tight relative">
             Voyage Guyane
           </h1>
           <h2 className="text-sm font-bold tracking-[0.2em] text-gray-400 uppercase mb-6">
@@ -75,7 +95,7 @@ const AdminLogin = () => {
       </div>
 
       {/* Right Pane - Login Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-[#0a1a0a]">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 relative z-10 backdrop-blur-md bg-transparent">
         <div className="w-full max-w-md bg-[#112211] border border-green-900/50 p-10 rounded-2xl shadow-2xl relative overflow-hidden">
           {/* Subtle top glow */}
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-green-500 to-transparent opacity-50"></div>
