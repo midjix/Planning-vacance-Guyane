@@ -155,12 +155,15 @@ const AdminStats = ({ token, showMessage, handleLogout }) => {
                     <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3}/>
                     <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
                   </linearGradient>
+                  <filter id="shadowArea" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="#000000" floodOpacity="0.5"/>
+                  </filter>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a3a2a" vertical={false} />
                 <XAxis dataKey="name" stroke="#4b5563" fontSize={12} tickMargin={10} />
                 <YAxis stroke="#4b5563" fontSize={12} />
-                <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="Vues" stroke="#22c55e" strokeWidth={3} fillOpacity={1} fill="url(#colorVues)" />
+                <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#22c55e', strokeWidth: 1, strokeDasharray: '3 3' }} />
+                <Area type="monotone" dataKey="Vues" stroke="#22c55e" strokeWidth={3} fillOpacity={1} fill="url(#colorVues)" filter="url(#shadowArea)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -175,11 +178,20 @@ const AdminStats = ({ token, showMessage, handleLogout }) => {
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stats.hourlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="barHourly" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#34d399" />
+                    <stop offset="100%" stopColor="#059669" />
+                  </linearGradient>
+                  <filter id="shadowBar" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="#000000" floodOpacity="0.5"/>
+                  </filter>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a3a2a" vertical={false} />
                 <XAxis dataKey="name" stroke="#4b5563" fontSize={12} tickMargin={10} />
                 <YAxis stroke="#4b5563" fontSize={12} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="Vues" fill="#10b981" radius={[4, 4, 0, 0]} />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: '#22c55e', opacity: 0.1 }} />
+                <Bar dataKey="Vues" fill="url(#barHourly)" radius={[4, 4, 0, 0]} filter="url(#shadowBar)" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -194,11 +206,17 @@ const AdminStats = ({ token, showMessage, handleLogout }) => {
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stats.monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="barMonthly" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#fde047" />
+                    <stop offset="100%" stopColor="#ca8a04" />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a3a2a" vertical={false} />
                 <XAxis dataKey="name" stroke="#4b5563" fontSize={12} tickMargin={10} />
                 <YAxis stroke="#4b5563" fontSize={12} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="Vues" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: '#fde047', opacity: 0.1 }} />
+                <Bar dataKey="Vues" fill="url(#barMonthly)" radius={[4, 4, 0, 0]} filter="url(#shadowBar)" />
               </BarChart>
             </ResponsiveContainer>
           </div>
