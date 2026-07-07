@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Lock, User, CheckCircle2 } from 'lucide-react';
 
 const AdminLogin = () => {
@@ -79,7 +79,11 @@ const AdminLogin = () => {
           {/* Subtle top glow */}
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-green-500 to-transparent opacity-50"></div>
           
-          <div className="flex items-center gap-3 mb-8">
+          <Link to="/" className="absolute top-4 right-4 text-xs font-bold text-gray-400 hover:text-white bg-[#0a1a0a] border border-green-900/50 hover:border-green-500 px-3 py-1.5 rounded-full transition-all">
+            Retour au site
+          </Link>
+
+          <div className="flex items-center gap-3 mb-8 mt-2">
             <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center border border-green-500/20">
               <Lock className="w-5 h-5 text-green-400" />
             </div>

@@ -54,6 +54,7 @@ const AdminPanel = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminUsername');
     navigate('/admin');
   };
 
