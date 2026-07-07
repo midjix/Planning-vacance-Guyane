@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save, Trash2, Plus, LogOut, ChevronDown, ChevronUp, Home, MapPin, Users, List, BarChart } from 'lucide-react';
+import { Save, Trash2, Plus, LogOut, ChevronDown, ChevronUp, Home, MapPin, Users, List, BarChart, User } from 'lucide-react';
 import AdminUsers from './AdminUsers';
 import AdminStats from './AdminStats';
 import AdminProfile from './AdminProfile';
