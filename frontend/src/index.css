@@ -21,3 +21,14 @@
   width: 2px;
   background-color: #4d8a4c;
 }
+
+@keyframes title-shine {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-title-shine {
+  background-size: 200% auto;
+  animation: title-shine 4s ease-in-out infinite;
+}

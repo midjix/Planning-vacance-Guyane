@@ -7,6 +7,15 @@ import { Compass, Map as MapIcon, Calendar } from 'lucide-react';
 function App() {
   const [itinerary, setItinerary] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [mousePos, setMousePos] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      setMousePos({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
 
   useEffect(() => {
     // Tracking de la visite (silencieux)
@@ -50,14 +59,24 @@ function App() {
 
       {/* Header Immersif */}
       <header className="relative h-screen flex items-center justify-center bg-nature-dark overflow-hidden">
-        <div className="absolute inset-0 z-0">
-          <div className="w-full h-full bg-gradient-to-b from-black/60 to-[#112211] flex items-center justify-center relative">
-            {/* Une image générée ou de remplacement pourrait aller ici. Pour l'instant, un gradient nature. */}
-            <div className="absolute inset-0 bg-nature-light mix-blend-overlay opacity-20"></div>
-          </div>
+        {/* Couche de base (fond sombre) */}
+        <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#0a1a0a] to-[#112211]"></div>
+        
+        {/* Halo lumineux qui révèle le feuillage autour de la souris */}
+        <div className="absolute inset-0 z-0 pointer-events-none transition-opacity duration-300 opacity-60 mix-blend-screen"
+             style={{
+               backgroundImage: `url('/foliage.png')`,
+               backgroundSize: '400px',
+               maskImage: `radial-gradient(circle 350px at ${mousePos.x}px ${mousePos.y}px, rgba(0,0,0,1) 0%, transparent 80%)`,
+               WebkitMaskImage: `radial-gradient(circle 350px at ${mousePos.x}px ${mousePos.y}px, rgba(0,0,0,1) 0%, transparent 80%)`,
+             }}>
         </div>
-        <div className="z-10 text-center px-4">
-          <h1 className="text-5xl md:text-7xl font-extrabold mb-4 tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600">
+
+        <div className="z-10 text-center px-4 relative">
+          {/* Lueur d'arrière-plan du texte */}
+          <div className="absolute inset-0 bg-green-500 blur-[80px] opacity-20 pointer-events-none rounded-full"></div>
+          
+          <h1 className="text-5xl md:text-7xl font-extrabold mb-4 tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-green-200 to-green-600 animate-title-shine">
             GUYANE 2026
           </h1>
           <p className="text-xl md:text-2xl text-gray-300 mb-8 max-w-2xl mx-auto">
