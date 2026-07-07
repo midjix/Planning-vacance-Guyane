@@ -211,8 +211,8 @@ const AdminPanel = () => {
     <div className="min-h-screen bg-[#112211] text-white">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-nature-dark/95 backdrop-blur-sm border-b border-nature-light">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
+        <div className="max-w-6xl mx-auto px-4 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="text-center md:text-left">
             <h1 className="text-2xl font-bold text-white">🌴 Admin — Guyane 2026</h1>
             <p className="text-sm text-gray-400">{itinerary.length} activités • Budget total : {itinerary.reduce((s, i) => s + (i.price || 0), 0)} €</p>
           </div>
@@ -249,7 +249,7 @@ const AdminPanel = () => {
       <main className="max-w-6xl mx-auto px-4 py-8">
         
         {/* Navigation Tabs */}
-        <div className="flex border-b border-nature-light mb-6">
+        <div className="flex border-b border-nature-light mb-6 overflow-x-auto whitespace-nowrap scrollbar-hide">
           <button
             onClick={() => setActiveTab('activities')}
             className={`flex items-center gap-2 px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
@@ -294,13 +294,13 @@ const AdminPanel = () => {
           >
             {/* Row header - always visible */}
             <div
-              className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-nature/50 transition-colors"
+              className="flex flex-col md:flex-row items-start md:items-center justify-between px-6 py-4 cursor-pointer hover:bg-nature/50 transition-colors gap-3 md:gap-0"
               onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
             >
-              <div className="flex items-center gap-4">
-                <span className="text-gray-400 text-sm font-mono w-24">{formatDate(item.date)}</span>
-                <h3 className="font-bold text-lg">{item.title}</h3>
-                <span className={`px-2 py-0.5 text-xs font-bold rounded-full border ${
+              <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 w-full">
+                <span className="text-gray-400 text-sm font-mono md:w-24 shrink-0">{formatDate(item.date)}</span>
+                <h3 className="font-bold text-lg leading-tight">{item.title}</h3>
+                <span className={`px-2 py-0.5 text-xs font-bold rounded-full border w-fit ${
                   item.status === 'RÉSERVÉ' ? 'bg-green-900/50 text-green-400 border-green-500' :
                   item.status?.includes('Validé') ? 'bg-blue-900/50 text-blue-400 border-blue-500' :
                   'bg-yellow-900/50 text-yellow-400 border-yellow-500'
@@ -308,7 +308,7 @@ const AdminPanel = () => {
                   {item.status?.toUpperCase() || 'N/A'}
                 </span>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between w-full md:w-auto md:justify-end gap-3 mt-2 md:mt-0">
                 {item.accommodation ? (
                   <span className="flex items-center gap-1 text-xs text-green-400">
                     <Home className="w-3 h-3" />
@@ -328,7 +328,7 @@ const AdminPanel = () => {
             {expandedId === item.id && (
               <div className="px-6 pb-6 border-t border-nature-light pt-4 space-y-4">
                 {/* Row 1: Date, Day, Status */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">Date</label>
                     <input
@@ -356,7 +356,7 @@ const AdminPanel = () => {
                 </div>
 
                 {/* Row 2: Title, Location */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">Titre</label>
                     <input
@@ -389,7 +389,7 @@ const AdminPanel = () => {
                 </div>
 
                 {/* Row 4: Price, Providers, Coordinates */}
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">Prix (€)</label>
                     <input
@@ -470,7 +470,7 @@ const AdminPanel = () => {
                       </label>
 
                       {!item.accommodation.isActivityAccommodation && (
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                           <div>
                             <label className="block text-xs text-gray-400 mb-1">Nom du lieu</label>
                             <input
@@ -512,10 +512,10 @@ const AdminPanel = () => {
                 </div>
 
                 {/* Actions */}
-                <div className="flex justify-between items-center pt-2">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4 md:gap-0 pt-2">
                   <button
                     onClick={() => deleteItem(item.id)}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-900/30 border border-red-500/50 text-red-400 rounded-lg text-sm hover:bg-red-900/50 transition-colors"
+                    className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-red-900/30 border border-red-500/50 text-red-400 rounded-lg text-sm hover:bg-red-900/50 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
                     Supprimer
@@ -523,7 +523,7 @@ const AdminPanel = () => {
                   <button
                     onClick={() => saveItem(item)}
                     disabled={saving === item.id}
-                    className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-lg text-sm hover:from-green-500 hover:to-emerald-500 disabled:opacity-50 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+                    className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-lg text-sm hover:from-green-500 hover:to-emerald-500 disabled:opacity-50 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
                   >
                     <Save className="w-4 h-4" />
                     {saving === item.id ? 'Sauvegarde...' : 'Sauvegarder'}

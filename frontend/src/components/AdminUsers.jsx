@@ -137,7 +137,7 @@ const AdminUsers = ({ token, showMessage, handleLogout }) => {
           {users.map(user => (
             <div key={user.id} className="px-6 py-4 flex items-center justify-between hover:bg-nature/30 transition-colors">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-green-900/50 flex items-center justify-center text-green-400 font-bold uppercase">
+                <div className="w-10 h-10 rounded-full bg-green-900/50 flex items-center justify-center text-green-400 font-bold uppercase shrink-0">
                   {user.username.charAt(0)}
                 </div>
                 <div>
