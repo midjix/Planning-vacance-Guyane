@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save, Trash2, Plus, LogOut, ChevronDown, ChevronUp, Home, MapPin, Users, List } from 'lucide-react';
+import { Save, Trash2, Plus, LogOut, ChevronDown, ChevronUp, Home, MapPin, Users, List, BarChart } from 'lucide-react';
 import AdminUsers from './AdminUsers';
+import AdminStats from './AdminStats';
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '—';
@@ -271,9 +272,20 @@ const AdminPanel = () => {
             <Users className="w-4 h-4" />
             Utilisateurs
           </button>
+          <button
+            onClick={() => setActiveTab('stats')}
+            className={`flex items-center gap-2 px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
+              activeTab === 'stats' 
+                ? 'border-green-500 text-green-400 bg-green-500/10' 
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/5'
+            }`}
+          >
+            <BarChart className="w-4 h-4" />
+            Statistiques
+          </button>
         </div>
 
-        {activeTab === 'activities' ? (
+        {activeTab === 'activities' && (
           <div className="space-y-4">
             {itinerary.map((item) => (
           <div
@@ -531,8 +543,14 @@ const AdminPanel = () => {
           Ajouter une activité
         </button>
           </div>
-        ) : (
+        )}
+        
+        {activeTab === 'users' && (
           <AdminUsers token={token} showMessage={showMessage} handleLogout={handleLogout} />
+        )}
+
+        {activeTab === 'stats' && (
+          <AdminStats token={token} showMessage={showMessage} handleLogout={handleLogout} />
         )}
       </main>
     </div>

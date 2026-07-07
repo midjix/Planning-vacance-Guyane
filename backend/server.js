@@ -14,6 +14,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'guyane2026-secret-key-voyage';
 // Chemin vers les fichiers de données
 const ITINERARY_FILE = path.join(__dirname, 'data', 'itinerary.json');
 const USERS_FILE = path.join(__dirname, 'data', 'users.json');
+const ANALYTICS_FILE = path.join(__dirname, 'data', 'analytics.json');
 
 // Fonctions utilitaires pour lire/écrire les fichiers JSON
 function readItinerary() {
@@ -43,6 +44,19 @@ function readUsers() {
 
 function writeUsers(data) {
   fs.writeFileSync(USERS_FILE, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+function readAnalytics() {
+  if (!fs.existsSync(ANALYTICS_FILE)) {
+    fs.writeFileSync(ANALYTICS_FILE, JSON.stringify([], null, 2), 'utf-8');
+    return [];
+  }
+  const raw = fs.readFileSync(ANALYTICS_FILE, 'utf-8');
+  return JSON.parse(raw);
+}
+
+function writeAnalytics(data) {
+  fs.writeFileSync(ANALYTICS_FILE, JSON.stringify(data, null, 2), 'utf-8');
 }
 
 app.use(cors());
@@ -81,6 +95,18 @@ app.get('/health', (req, res) => {
   res.status(200).send('OK');
 });
 
+// Enregistrer une visite (tracking d'audience)
+app.post('/api/track', (req, res) => {
+  try {
+    const analytics = readAnalytics();
+    analytics.push(Date.now());
+    writeAnalytics(analytics);
+    res.status(200).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur lors de l\'enregistrement de la visite' });
+  }
+});
+
 // ==================== ROUTES ADMIN ====================
 
 // Login admin
@@ -99,6 +125,18 @@ app.post('/api/admin/login', (req, res) => {
   
   const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
   res.json({ token, username: user.username, role: user.role });
+});
+
+// ==================== ROUTES STATISTIQUES ====================
+
+// Récupérer les statistiques
+app.get('/api/admin/analytics', authMiddleware, (req, res) => {
+  try {
+    const analytics = readAnalytics();
+    res.json(analytics);
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur lecture des statistiques' });
+  }
 });
 
 // ==================== ROUTES UTILISATEURS ====================

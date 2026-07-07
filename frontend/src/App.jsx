@@ -9,6 +9,9 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Tracking de la visite (silencieux)
+    fetch('/api/track', { method: 'POST' }).catch(() => {});
+
     // Dans docker ou local, on pointe sur le backend (port 8081 en dev, ou nginx pass)
     // L'appel passe par nginx qui redirige vers le backend via le proxy
     fetch('/api/itinerary')
