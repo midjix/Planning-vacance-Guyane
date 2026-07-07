@@ -1,6 +1,17 @@
 import React from 'react';
 import { Home } from 'lucide-react';
 
+const formatDate = (dateStr) => {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  const parts = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }).split(' ');
+  if (parts.length > 1) {
+    return `${parts[0]} ${parts[1].charAt(0).toUpperCase() + parts[1].slice(1)}`;
+  }
+  return dateStr;
+};
+
 const Timeline = ({ itinerary }) => {
   return (
     <div className="p-6 bg-nature-dark rounded-lg shadow-lg">
@@ -11,7 +22,7 @@ const Timeline = ({ itinerary }) => {
             <div className="absolute -left-[2.1rem] top-1 w-4 h-4 bg-nature-light rounded-full border-2 border-nature-dark"></div>
             <div className="bg-nature p-4 rounded-lg shadow-md border border-nature-light hover:bg-nature-light transition-colors">
               <div className="flex justify-between items-start mb-2">
-                <h3 className="text-xl font-bold text-white">{day.day} : {day.title}</h3>
+                <h3 className="text-xl font-bold text-white">{formatDate(day.date)} : {day.title}</h3>
                 {day.status && (
                   <span className={`px-2 py-1 text-xs font-bold rounded-full border shrink-0 ml-2 ${
                     day.status === 'RÉSERVÉ' ? 'bg-green-900/50 text-green-400 border-green-500' :

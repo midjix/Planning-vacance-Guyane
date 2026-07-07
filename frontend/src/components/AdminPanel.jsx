@@ -2,6 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Save, Trash2, Plus, LogOut, ChevronDown, ChevronUp, Home, MapPin } from 'lucide-react';
 
+const formatDate = (dateStr) => {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  const parts = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }).split(' ');
+  if (parts.length > 1) {
+    return `${parts[0]} ${parts[1].charAt(0).toUpperCase() + parts[1].slice(1)}`;
+  }
+  return dateStr;
+};
+
 const AdminPanel = () => {
   const [itinerary, setItinerary] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -157,7 +168,6 @@ const AdminPanel = () => {
         },
         body: JSON.stringify({
           date: '',
-          day: 'Nouveau jour',
           title: 'Nouvelle activité',
           description: '',
           location: '',
@@ -245,7 +255,7 @@ const AdminPanel = () => {
               onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
             >
               <div className="flex items-center gap-4">
-                <span className="text-gray-400 text-sm font-mono w-24">{item.date || '—'}</span>
+                <span className="text-gray-400 text-sm font-mono w-24">{formatDate(item.date)}</span>
                 <h3 className="font-bold text-lg">{item.title}</h3>
                 <span className={`px-2 py-0.5 text-xs font-bold rounded-full border ${
                   item.status === 'RÉSERVÉ' ? 'bg-green-900/50 text-green-400 border-green-500' :
@@ -275,22 +285,13 @@ const AdminPanel = () => {
             {expandedId === item.id && (
               <div className="px-6 pb-6 border-t border-nature-light pt-4 space-y-4">
                 {/* Row 1: Date, Day, Status */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">Date</label>
                     <input
                       type="date"
                       value={item.date}
                       onChange={(e) => updateField(item.id, 'date', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#112211] border border-nature-light rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Jour (affiché)</label>
-                    <input
-                      type="text"
-                      value={item.day}
-                      onChange={(e) => updateField(item.id, 'day', e.target.value)}
                       className="w-full px-3 py-2 bg-[#112211] border border-nature-light rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
                     />
                   </div>

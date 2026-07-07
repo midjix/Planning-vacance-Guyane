@@ -3,6 +3,17 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
+const formatDate = (dateStr) => {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  const parts = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }).split(' ');
+  if (parts.length > 1) {
+    return `${parts[0]} ${parts[1].charAt(0).toUpperCase() + parts[1].slice(1)}`;
+  }
+  return dateStr;
+};
+
 // Fix for default marker icons in React Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -139,7 +150,7 @@ const InteractiveMap = ({ itinerary }) => {
             <Marker key={`act-${day.id}`} position={day.coordinates} icon={activityIcon}>
               <Popup>
                 <div className="font-sans">
-                  <h4 className="font-bold text-green-700">{day.day}</h4>
+                  <h4 className="font-bold text-green-700">{formatDate(day.date)}</h4>
                   <p className="font-semibold">{day.title}</p>
                   <p className="text-sm italic text-gray-600">{day.location}</p>
                   {day.accommodation?.isActivityAccommodation && (
