@@ -27,17 +27,23 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#112211] font-sans text-white">
-      {/* Salutation Utilisateur */}
-      {localStorage.getItem('adminUsername') && (
-        <div className="absolute top-0 left-0 w-full z-50 bg-green-900/30 backdrop-blur-sm border-b border-green-500/20 px-6 py-3 flex justify-between items-center">
-          <span className="text-sm font-medium text-green-400">
-            👋 Bonjour <strong className="text-white">{localStorage.getItem('adminUsername')}</strong>
-          </span>
-          <Link to="/admin/panel" className="text-xs bg-green-500 hover:bg-green-400 text-[#112211] font-bold px-3 py-1.5 rounded-full transition-colors">
-            Accéder à l'Admin
+      {/* Barre supérieure (Connexion / Salutation) */}
+      <div className="absolute top-0 left-0 w-full z-50 px-6 py-4 flex justify-end items-center">
+        {localStorage.getItem('adminUsername') ? (
+          <div className="bg-green-900/60 backdrop-blur-md border border-green-500/30 px-4 py-2 rounded-full flex items-center gap-4 shadow-lg">
+            <span className="text-sm font-medium text-green-400">
+              👋 Bonjour <strong className="text-white">{localStorage.getItem('adminUsername')}</strong>
+            </span>
+            <Link to="/admin/panel" className="text-xs bg-green-500 hover:bg-green-400 text-[#112211] font-bold px-3 py-1.5 rounded-full transition-colors">
+              Espace Admin
+            </Link>
+          </div>
+        ) : (
+          <Link to="/admin" className="text-sm bg-black/40 hover:bg-black/60 backdrop-blur-sm border border-white/10 text-white font-medium px-5 py-2 rounded-full transition-all hover:scale-105 flex items-center gap-2 shadow-lg">
+            Connexion
           </Link>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Header Immersif */}
       <header className="relative h-screen flex items-center justify-center bg-nature-dark overflow-hidden">
