@@ -96,9 +96,11 @@ function App() {
             {/* Colonne Carte */}
             <div className="lg:sticky lg:top-8 h-fit">
               <h2 className="text-3xl font-bold mb-6 text-white">Tracé de l'expédition</h2>
-              <InteractiveMap itinerary={itinerary} />
+              <div className="shadow-2xl shadow-black/50 overflow-hidden rounded-xl">
+                <InteractiveMap itinerary={itinerary} />
+              </div>
               
-              <div className="mt-8 bg-nature p-6 rounded-lg border border-nature-light">
+              <div className="mt-8 bg-nature p-6 rounded-lg border border-nature-light shadow-2xl shadow-black/50 hover:shadow-black/70 hover:-translate-y-1 transition-all duration-300">
                 <h3 className="text-xl font-bold mb-4">Informations Logistiques</h3>
                 <ul className="space-y-3 text-gray-300">
                   <li><strong>Pied-à-terre :</strong> Matoury (Chez l'oncle)</li>

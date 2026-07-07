@@ -14,13 +14,13 @@ const formatDate = (dateStr) => {
 
 const Timeline = ({ itinerary }) => {
   return (
-    <div className="p-6 bg-nature-dark rounded-lg shadow-lg">
+    <div className="p-6 bg-nature-dark rounded-lg shadow-xl shadow-black/40 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 border border-nature-light/50">
       <h2 className="text-3xl font-bold text-white mb-6">Itinéraire du Trek</h2>
       <div className="timeline-container">
         {itinerary.map((day, index) => (
           <div key={day.id} className="mb-8 relative">
             <div className="absolute -left-[2.1rem] top-1 w-4 h-4 bg-nature-light rounded-full border-2 border-nature-dark"></div>
-            <div className="bg-nature p-4 rounded-lg shadow-md border border-nature-light hover:bg-nature-light transition-colors">
+            <div className="bg-nature p-4 rounded-lg shadow-lg shadow-black/30 border border-nature-light hover:bg-nature-light transition-all hover:scale-[1.02]">
               <div className="flex justify-between items-start mb-2">
                 <h3 className="text-xl font-bold text-white">{formatDate(day.date)} : {day.title}</h3>
                 {day.status && (

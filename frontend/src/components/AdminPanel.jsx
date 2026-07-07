@@ -290,7 +290,7 @@ const AdminPanel = () => {
             {itinerary.map((item) => (
           <div
             key={item.id}
-            className="bg-nature-dark border border-nature-light rounded-xl overflow-hidden"
+            className="bg-nature-dark border border-nature-light rounded-xl overflow-hidden shadow-xl shadow-black/40 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1"
           >
             {/* Row header - always visible */}
             <div
@@ -537,7 +537,7 @@ const AdminPanel = () => {
         {/* Add button */}
         <button
           onClick={addItem}
-          className="w-full py-4 border-2 border-dashed border-nature-light rounded-xl text-gray-400 hover:text-white hover:border-green-500 transition-colors flex items-center justify-center gap-2"
+          className="w-full py-4 border-2 border-dashed border-nature-light rounded-xl text-gray-400 hover:text-white hover:border-green-500 hover:bg-green-500/5 transition-all flex items-center justify-center gap-2 hover:-translate-y-1"
         >
           <Plus className="w-5 h-5" />
           Ajouter une activité

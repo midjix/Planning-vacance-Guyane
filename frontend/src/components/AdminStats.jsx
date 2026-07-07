@@ -117,7 +117,7 @@ const AdminStats = ({ token, showMessage, handleLogout }) => {
     <div className="space-y-6">
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-nature-dark border border-nature-light p-6 rounded-xl flex items-center gap-4">
+        <div className="bg-nature-dark border border-nature-light p-6 rounded-xl flex items-center gap-4 shadow-xl shadow-black/40 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
           <div className="p-3 bg-green-500/10 rounded-lg text-green-500">
             <Activity className="w-6 h-6" />
           </div>
@@ -127,7 +127,7 @@ const AdminStats = ({ token, showMessage, handleLogout }) => {
           </div>
         </div>
         
-        <div className="bg-nature-dark border border-nature-light p-6 rounded-xl flex items-center gap-4">
+        <div className="bg-nature-dark border border-nature-light p-6 rounded-xl flex items-center gap-4 shadow-xl shadow-black/40 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
           <div className="p-3 bg-emerald-500/10 rounded-lg text-emerald-500">
             <TrendingUp className="w-6 h-6" />
           </div>
@@ -142,7 +142,7 @@ const AdminStats = ({ token, showMessage, handleLogout }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Graphique 14 jours */}
-        <div className="bg-nature-dark border border-nature-light p-6 rounded-xl">
+        <div className="bg-nature-dark border border-nature-light p-6 rounded-xl shadow-xl shadow-black/40 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
           <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
             <CalendarIcon className="w-5 h-5 text-green-500" />
             Visites sur les 14 derniers jours
@@ -170,7 +170,7 @@ const AdminStats = ({ token, showMessage, handleLogout }) => {
         </div>
 
         {/* Graphique Horaire */}
-        <div className="bg-nature-dark border border-nature-light p-6 rounded-xl">
+        <div className="bg-nature-dark border border-nature-light p-6 rounded-xl shadow-xl shadow-black/40 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
           <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
             <Clock className="w-5 h-5 text-green-500" />
             Répartition par heure de la journée
@@ -198,7 +198,7 @@ const AdminStats = ({ token, showMessage, handleLogout }) => {
         </div>
 
         {/* Graphique Mensuel */}
-        <div className="bg-nature-dark border border-nature-light p-6 rounded-xl lg:col-span-2">
+        <div className="bg-nature-dark border border-nature-light p-6 rounded-xl lg:col-span-2 shadow-xl shadow-black/40 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
           <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
             <CalendarIcon className="w-5 h-5 text-green-500" />
             Visites mensuelles ({new Date().getFullYear()})

@@ -88,7 +88,7 @@ const AdminUsers = ({ token, showMessage, handleLogout }) => {
   return (
     <div className="space-y-6">
       {/* Création */}
-      <div className="bg-nature-dark border border-nature-light p-6 rounded-xl">
+      <div className="bg-nature-dark border border-nature-light p-6 rounded-xl shadow-xl shadow-black/40 hover:shadow-2xl transition-all duration-300">
         <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
           <UserPlus className="w-5 h-5 text-green-500" />
           Nouvel Utilisateur
@@ -126,7 +126,7 @@ const AdminUsers = ({ token, showMessage, handleLogout }) => {
       </div>
 
       {/* Liste */}
-      <div className="bg-nature-dark border border-nature-light rounded-xl overflow-hidden">
+      <div className="bg-nature-dark border border-nature-light rounded-xl overflow-hidden shadow-xl shadow-black/40">
         <div className="px-6 py-4 border-b border-nature-light bg-[#0a1a0a]">
           <h3 className="text-lg font-bold flex items-center gap-2">
             <Shield className="w-5 h-5 text-green-500" />
