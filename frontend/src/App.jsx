@@ -32,7 +32,7 @@ function App() {
     <div className="min-h-screen bg-[#112211] font-sans text-white">
       {/* Barre supérieure (Connexion / Salutation) */}
       <div className="absolute top-0 left-0 w-full z-50 px-6 py-4 flex justify-end items-center">
-        {localStorage.getItem('adminUsername') ? (
+        {localStorage.getItem('adminToken') && localStorage.getItem('adminUsername') ? (
           <div className="bg-green-900/60 backdrop-blur-md border border-green-500/30 px-4 py-2 rounded-full flex items-center gap-2 md:gap-4 shadow-lg max-w-full">
             <span className="text-sm font-medium text-green-400 hidden sm:block truncate">
               👋 Bonjour <strong className="text-white">{localStorage.getItem('adminUsername')}</strong>
