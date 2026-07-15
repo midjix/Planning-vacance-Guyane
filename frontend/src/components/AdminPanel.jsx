@@ -4,17 +4,7 @@ import { Save, Trash2, Plus, LogOut, ChevronDown, ChevronUp, Home, MapPin, Users
 import AdminUsers from './AdminUsers';
 import AdminStats from './AdminStats';
 import AdminProfile from './AdminProfile';
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return dateStr;
-  const parts = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }).split(' ');
-  if (parts.length > 1) {
-    return `${parts[0]} ${parts[1].charAt(0).toUpperCase() + parts[1].slice(1)}`;
-  }
-  return dateStr;
-};
+import { formatDate } from '../utils/formatDate';
 
 const AdminPanel = () => {
   const [itinerary, setItinerary] = useState([]);
