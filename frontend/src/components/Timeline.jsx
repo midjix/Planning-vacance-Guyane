@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home } from 'lucide-react';
+import { Home, Navigation } from 'lucide-react';
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '—';
@@ -33,7 +33,22 @@ const Timeline = ({ itinerary }) => {
                   </span>
                 )}
               </div>
-              <p className="text-nature-earth font-semibold mb-2">{day.location}</p>
+              <div className="flex items-center flex-wrap gap-2 mb-2">
+                <p className="text-nature-earth font-semibold">{day.location}</p>
+                {day.location && day.location.trim() !== '' && (
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(day.location)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1.5 bg-blue-900/40 text-blue-400 hover:bg-blue-800/60 hover:text-blue-300 rounded-md transition-colors border border-blue-500/40 flex items-center gap-1.5 text-xs shadow-sm"
+                    title="Lancer la navigation sur Google Maps"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Navigation className="w-3.5 h-3.5" />
+                    <span className="font-medium">S'y rendre</span>
+                  </a>
+                )}
+              </div>
               <p className="text-gray-200 mb-2">{day.description}</p>
               {day.providers && day.providers.length > 0 && (
                 <p className="text-sm text-gray-300">Prestataires : {day.providers.join(', ')}</p>

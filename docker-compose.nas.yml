@@ -10,6 +10,9 @@ services:
       - "8081:8081"
     environment:
       - PORT=8081
+      # Valeurs lues depuis le fichier .env placé à côté de ce docker-compose.nas.yml
+      - JWT_SECRET=${JWT_SECRET}
+      - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
     volumes:
       # Persiste les données modifiées via l'admin (sinon perdues à chaque mise à jour)
       - backend-data:/app/data
@@ -26,8 +29,11 @@ services:
 
   # Watchtower s'occupe de vérifier s'il y a de nouvelles images sur GitHub
   # et de redémarrer automatiquement les conteneurs avec la nouvelle version.
+  # NB: on utilise le fork maintenu nickfedor/watchtower — l'image d'origine
+  # containrrr/watchtower n'est plus mise à jour et est incompatible avec les
+  # démons Docker récents (erreur "client version 1.25 is too old").
   watchtower:
-    image: containrrr/watchtower
+    image: nickfedor/watchtower
     container_name: watchtower
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -44,7 +50,8 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: tunnel
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --token eyJhIjoiMDhlODBlY2ZkYjc2ZmJlMTM1Nzg2NjA1OTQzNWIxM2EiLCJ0IjoiZGMyMmU5ZWEtMjEyZS00NjU2LTlmOGUtODU1Y2IyY2MwM2Q4IiwicyI6Ik5UTTVNR0l6TVRrdE9XUmpOaTAwTWpGbExXRmpOVGN0WmpCak5XSmlaV1ZsWXpjdyJ9
+    # Token lu depuis le fichier .env placé à côté de ce docker-compose.nas.yml
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
 
 volumes:
   backend-data:

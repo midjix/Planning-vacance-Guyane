@@ -8,8 +8,12 @@ const bcrypt = require('bcryptjs');
 const app = express();
 const PORT = process.env.PORT || 8081;
 
-// Clé secrète pour JWT (en production, utiliser une variable d'environnement)
-const JWT_SECRET = process.env.JWT_SECRET || 'guyane2026-secret-key-voyage';
+// Clé secrète pour JWT — doit être fournie via la variable d'environnement JWT_SECRET
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('Erreur: la variable d\'environnement JWT_SECRET est manquante. Définis-la avant de démarrer le serveur.');
+  process.exit(1);
+}
 
 // Chemin vers les fichiers de données
 const ITINERARY_FILE = path.join(__dirname, 'data', 'itinerary.json');
@@ -29,10 +33,13 @@ function writeItinerary(data) {
 function readUsers() {
   if (!fs.existsSync(USERS_FILE)) {
     // Créer un utilisateur admin par défaut
+    if (!process.env.ADMIN_DEFAULT_PASSWORD) {
+      console.warn('ADMIN_DEFAULT_PASSWORD non défini, utilisation d\'un mot de passe par défaut. Change-le après la première connexion.');
+    }
     const defaultUsers = [{
       id: 1,
       username: 'admin',
-      passwordHash: bcrypt.hashSync('Weko@Guy973', 10),
+      passwordHash: bcrypt.hashSync(process.env.ADMIN_DEFAULT_PASSWORD || 'Weko@Guy973', 10),
       role: 'admin'
     }];
     fs.writeFileSync(USERS_FILE, JSON.stringify(defaultUsers, null, 2), 'utf-8');
