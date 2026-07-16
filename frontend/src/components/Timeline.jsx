@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Home, Navigation, Camera } from 'lucide-react';
 import { formatDate } from '../utils/formatDate';
+import { getToken } from '../utils/auth';
 
 // Bouton "Y aller" ouvrant un petit menu de choix Waze / Google Maps,
 // basé sur les coordonnées GPS de l'activité (plus fiable que le nom du lieu).
@@ -33,7 +34,7 @@ const NavButton = ({ coordinates }) => {
 
 const Timeline = ({ itinerary }) => {
   const navigate = useNavigate();
-  const isLoggedIn = !!localStorage.getItem('adminToken');
+  const isLoggedIn = !!getToken();
   const hasCoords = (day) => Array.isArray(day.coordinates) && day.coordinates.length === 2;
 
   return (

@@ -5,6 +5,7 @@ import AdminUsers from './AdminUsers';
 import AdminStats from './AdminStats';
 import AdminProfile from './AdminProfile';
 import { formatDate } from '../utils/formatDate';
+import { getToken, getRole, clearAuth } from '../utils/auth';
 
 const AdminPanel = () => {
   const [itinerary, setItinerary] = useState([]);
@@ -15,8 +16,8 @@ const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState('activities');
   const navigate = useNavigate();
 
-  const token = localStorage.getItem('adminToken');
-  const role = localStorage.getItem('adminRole');
+  const token = getToken();
+  const role = getRole();
 
   useEffect(() => {
     if (!token) {
@@ -53,9 +54,7 @@ const AdminPanel = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('adminToken');
-    localStorage.removeItem('adminUsername');
-    localStorage.removeItem('adminRole');
+    clearAuth();
     navigate('/admin');
   };
 

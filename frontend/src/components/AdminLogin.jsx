@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Lock, User, CheckCircle2 } from 'lucide-react';
+import { setAuth, getToken, upgradeToPersistent } from '../utils/auth';
+import RememberPrompt from './RememberPrompt';
 
 const AdminLogin = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showRemember, setShowRemember] = useState(false);
   const [mousePos, setMousePos] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   const navigate = useNavigate();
 
@@ -33,10 +36,9 @@ const AdminLogin = () => {
       const data = await res.json();
 
       if (res.ok) {
-        localStorage.setItem('adminToken', data.token);
-        localStorage.setItem('adminUsername', data.username);
-        localStorage.setItem('adminRole', data.role);
-        navigate('/admin/panel');
+        // On stocke d'abord en session courte ; le modal propose de rester connecté.
+        setAuth({ token: data.token, username: data.username, role: data.role }, false);
+        setShowRemember(true);
       } else {
         setError(data.error || 'Identifiants incorrects');
       }
@@ -47,8 +49,26 @@ const AdminLogin = () => {
     }
   };
 
+  // Choix "rester connecté" : si oui, on échange le token contre un token long (30j) persistant.
+  const handleRememberChoice = async (persistent) => {
+    if (persistent) {
+      try {
+        const res = await fetch('/api/auth/remember', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${getToken()}` },
+        });
+        const data = await res.json();
+        if (res.ok && data.token) upgradeToPersistent(data.token);
+      } catch (err) {
+        /* on garde la session courte en cas d'échec */
+      }
+    }
+    navigate('/admin/panel');
+  };
+
   return (
     <div className="min-h-screen flex bg-[#0a1a0a] text-white font-sans relative overflow-hidden">
+      {showRemember && <RememberPrompt onChoice={handleRememberChoice} />}
       {/* Halo lumineux qui révèle le feuillage autour de la souris */}
       <div className="absolute inset-0 z-0 pointer-events-none transition-opacity duration-300 opacity-60 mix-blend-screen"
            style={{

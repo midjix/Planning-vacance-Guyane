@@ -96,6 +96,11 @@ function adminOnly(req, res, next) {
   next();
 }
 
+// Génère un token de session pour un utilisateur, avec une durée de vie donnée.
+function issueToken(user, expiresIn) {
+  return jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn });
+}
+
 // ==================== ROUTES PUBLIQUES ====================
 
 // Endpoint pour récupérer l'itinéraire
@@ -141,8 +146,71 @@ app.post('/api/admin/login', (req, res) => {
     return res.status(401).json({ error: 'Identifiants incorrects' });
   }
   
-  const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
+  // Session courte par défaut ; l'utilisateur peut la prolonger via /api/auth/remember.
+  const token = issueToken(user, '24h');
   res.json({ token, username: user.username, role: user.role });
+});
+
+// Prolonger la session courante ("rester connecté" 30 jours sur l'appareil)
+app.post('/api/auth/remember', authMiddleware, (req, res) => {
+  res.json({ token: issueToken(req.user, '30d') });
+});
+
+// ==================== ROUTES INVITATIONS ====================
+
+// Générer un lien/QR d'invitation (admin uniquement).
+// Le token est un JWT signé auto-validant : réutilisable jusqu'à son expiration,
+// sans stockage serveur. Durée entre 1h et 24h.
+app.post('/api/admin/invites', authMiddleware, adminOnly, (req, res) => {
+  const validRole = ['user', 'admin'].includes(req.body.role) ? req.body.role : 'user';
+  const hours = parseInt(req.body.hours, 10);
+  if (isNaN(hours) || hours < 1 || hours > 24) {
+    return res.status(400).json({ error: 'Durée invalide (entre 1 et 24 heures)' });
+  }
+  const token = jwt.sign({ type: 'invite', role: validRole }, JWT_SECRET, { expiresIn: `${hours}h` });
+  const decoded = jwt.decode(token);
+  res.status(201).json({ token, role: validRole, expiresAt: decoded.exp * 1000 });
+});
+
+// Vérifier la validité d'une invitation (public, utilisé par la page d'inscription)
+app.get('/api/invite/:token', (req, res) => {
+  try {
+    const decoded = jwt.verify(req.params.token, JWT_SECRET);
+    if (decoded.type !== 'invite') throw new Error('Type invalide');
+    res.json({ valid: true, role: decoded.role, expiresAt: decoded.exp * 1000 });
+  } catch (err) {
+    res.status(400).json({ valid: false, error: 'Lien d\'invitation invalide ou expiré' });
+  }
+});
+
+// S'inscrire via une invitation (public)
+app.post('/api/invite/register', (req, res) => {
+  const { token, username, password } = req.body;
+  if (!token || !username || !password) {
+    return res.status(400).json({ error: 'Données manquantes' });
+  }
+  let decoded;
+  try {
+    decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.type !== 'invite') throw new Error('Type invalide');
+  } catch (err) {
+    return res.status(400).json({ error: 'Lien d\'invitation invalide ou expiré' });
+  }
+  const users = readUsers();
+  if (users.find(u => u.username === username)) {
+    return res.status(400).json({ error: 'Nom d\'utilisateur déjà pris' });
+  }
+  const maxId = users.reduce((max, u) => Math.max(max, u.id), 0);
+  const newUser = {
+    id: maxId + 1,
+    username,
+    passwordHash: bcrypt.hashSync(password, 10),
+    role: decoded.role === 'admin' ? 'admin' : 'user',
+  };
+  users.push(newUser);
+  writeUsers(users);
+  // Connexion automatique après inscription (session courte, prompt "rester connecté" côté client)
+  res.status(201).json({ token: issueToken(newUser, '24h'), username: newUser.username, role: newUser.role });
 });
 
 // ==================== ROUTES STATISTIQUES ====================

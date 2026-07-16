@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { UserPlus, Shield, Trash2, Plus, ArrowLeftRight } from 'lucide-react';
+import QRCode from 'qrcode';
+import { UserPlus, Shield, Trash2, Plus, ArrowLeftRight, Link2, QrCode, Copy, Check, Clock } from 'lucide-react';
 
 const AdminUsers = ({ token, showMessage, handleLogout }) => {
   const [users, setUsers] = useState([]);
@@ -7,6 +8,51 @@ const AdminUsers = ({ token, showMessage, handleLogout }) => {
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [creating, setCreating] = useState(false);
+
+  // Génération d'invitation par lien / QR code
+  const [inviteRole, setInviteRole] = useState('user');
+  const [inviteHours, setInviteHours] = useState('24');
+  const [generatingInvite, setGeneratingInvite] = useState(false);
+  const [inviteLink, setInviteLink] = useState('');
+  const [inviteQr, setInviteQr] = useState('');
+  const [inviteExpiresAt, setInviteExpiresAt] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleGenerateInvite = async () => {
+    setGeneratingInvite(true);
+    setCopied(false);
+    try {
+      const res = await fetch('/api/admin/invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ role: inviteRole, hours: parseInt(inviteHours, 10) }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 401) return handleLogout();
+        throw new Error(data.error || 'Erreur de génération');
+      }
+      const url = `${window.location.origin}/invite/${data.token}`;
+      const qr = await QRCode.toDataURL(url, { width: 240, margin: 1 });
+      setInviteLink(url);
+      setInviteQr(qr);
+      setInviteExpiresAt(data.expiresAt);
+    } catch (err) {
+      showMessage(err.message, 'error');
+    } finally {
+      setGeneratingInvite(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      showMessage('Impossible de copier le lien', 'error');
+    }
+  };
 
   useEffect(() => {
     fetchUsers();
@@ -147,6 +193,83 @@ const AdminUsers = ({ token, showMessage, handleLogout }) => {
             {creating ? 'Création...' : 'Créer'}
           </button>
         </form>
+      </div>
+
+      {/* Invitation par lien / QR code */}
+      <div className="bg-nature-dark border border-nature-light p-6 rounded-xl shadow-xl shadow-black/40">
+        <h3 className="text-lg font-bold mb-1 flex items-center gap-2">
+          <QrCode className="w-5 h-5 text-green-500" />
+          Inviter par lien / QR code
+        </h3>
+        <p className="text-xs text-gray-400 mb-4">
+          Génère un lien (et son QR code) permettant de créer un compte. Réutilisable jusqu'à expiration.
+        </p>
+        <div className="flex flex-col md:flex-row gap-4 items-end">
+          <div className="w-full md:w-auto">
+            <label className="block text-xs text-gray-400 mb-1">Rôle attribué</label>
+            <select
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value)}
+              className="w-full px-3 py-2 bg-[#112211] border border-nature-light rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
+            >
+              <option value="user">Utilisateur</option>
+              <option value="admin">Administrateur</option>
+            </select>
+          </div>
+          <div className="w-full md:w-auto">
+            <label className="block text-xs text-gray-400 mb-1">Validité</label>
+            <select
+              value={inviteHours}
+              onChange={(e) => setInviteHours(e.target.value)}
+              className="w-full px-3 py-2 bg-[#112211] border border-nature-light rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
+            >
+              <option value="1">1 heure</option>
+              <option value="6">6 heures</option>
+              <option value="12">12 heures</option>
+              <option value="24">24 heures</option>
+            </select>
+          </div>
+          <button
+            onClick={handleGenerateInvite}
+            disabled={generatingInvite}
+            className="w-full md:w-auto px-6 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+          >
+            <Link2 className="w-4 h-4" />
+            {generatingInvite ? 'Génération...' : 'Générer'}
+          </button>
+        </div>
+
+        {inviteLink && (
+          <div className="mt-6 flex flex-col md:flex-row gap-6 items-center md:items-start bg-[#0a1a0a] border border-nature-light rounded-lg p-4">
+            <img src={inviteQr} alt="QR code d'invitation" className="w-40 h-40 rounded-lg bg-white p-2 shrink-0" />
+            <div className="flex-1 w-full min-w-0">
+              <label className="block text-xs text-gray-400 mb-1">Lien d'invitation</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={inviteLink}
+                  onFocus={(e) => e.target.select()}
+                  className="flex-1 min-w-0 px-3 py-2 bg-[#112211] border border-nature-light rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
+                />
+                <button
+                  onClick={handleCopyLink}
+                  className="px-3 py-2 bg-nature border border-nature-light rounded-lg text-sm hover:bg-nature-light transition-colors flex items-center gap-1.5 shrink-0"
+                >
+                  {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                  {copied ? 'Copié' : 'Copier'}
+                </button>
+              </div>
+              {inviteExpiresAt && (
+                <p className="mt-3 flex items-center gap-1.5 text-xs text-yellow-400">
+                  <Clock className="w-3.5 h-3.5" />
+                  Expire le {new Date(inviteExpiresAt).toLocaleString('fr-FR')}
+                </p>
+              )}
+              <p className="mt-1 text-xs text-gray-500">Rôle attribué : {inviteRole === 'admin' ? 'Administrateur' : 'Utilisateur'}</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Liste */}

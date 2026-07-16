@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Timeline from './components/Timeline';
 import InteractiveMap from './components/InteractiveMap';
 import { Compass, Map as MapIcon, Calendar } from 'lucide-react';
+import { getToken, getUsername, getRole } from './utils/auth';
 
 function App() {
   const [itinerary, setItinerary] = useState([]);
@@ -41,13 +42,13 @@ function App() {
     <div className="min-h-screen bg-[#112211] font-sans text-white">
       {/* Barre supérieure (Connexion / Salutation) */}
       <div className="absolute top-0 left-0 w-full z-50 px-6 py-4 flex justify-end items-center">
-        {localStorage.getItem('adminToken') && localStorage.getItem('adminUsername') ? (
+        {getToken() && getUsername() ? (
           <div className="bg-green-900/60 backdrop-blur-md border border-green-500/30 px-4 py-2 rounded-full flex items-center gap-2 md:gap-4 shadow-lg max-w-full">
             <span className="text-sm font-medium text-green-400 hidden sm:block truncate">
-              👋 Bonjour <strong className="text-white">{localStorage.getItem('adminUsername')}</strong>
+              👋 Bonjour <strong className="text-white">{getUsername()}</strong>
             </span>
             <Link to="/admin/panel" className="text-xs bg-green-500 hover:bg-green-400 text-[#112211] font-bold px-3 py-1.5 rounded-full transition-colors shrink-0">
-              {localStorage.getItem('adminRole') === 'admin' ? 'Espace Admin' : 'Mon Espace'}
+              {getRole() === 'admin' ? 'Espace Admin' : 'Mon Espace'}
             </Link>
           </div>
         ) : (

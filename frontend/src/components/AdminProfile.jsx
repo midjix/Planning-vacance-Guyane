@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { User, Lock, Save } from 'lucide-react';
+import { getUsername, patchAuth } from '../utils/auth';
 
 const AdminProfile = ({ token, showMessage }) => {
-  const [username, setUsername] = useState(localStorage.getItem('adminUsername') || '');
+  const [username, setUsername] = useState(getUsername() || '');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -22,10 +23,7 @@ const AdminProfile = ({ token, showMessage }) => {
       const data = await res.json();
       if (res.ok) {
         showMessage('Profil mis à jour avec succès', 'success');
-        localStorage.setItem('adminUsername', data.username);
-        if (data.token) {
-          localStorage.setItem('adminToken', data.token);
-        }
+        patchAuth({ adminUsername: data.username, adminToken: data.token });
         setPassword('');
       } else {
         showMessage(data.error || 'Erreur lors de la mise à jour', 'error');

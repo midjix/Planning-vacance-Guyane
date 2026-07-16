@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Upload, Download, Trash2, ImageOff, Loader2, Camera } from 'lucide-react';
 import { formatDate } from '../utils/formatDate';
+import { getToken } from '../utils/auth';
 
 const authHeaders = (token) => ({ Authorization: `Bearer ${token}` });
 
@@ -70,7 +71,7 @@ const PhotoThumb = ({ id, photo, token, onDelete }) => {
 const ActivityPhotos = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const token = localStorage.getItem('adminToken');
+  const token = getToken();
 
   const [activity, setActivity] = useState(null);
   const [photos, setPhotos] = useState([]);
