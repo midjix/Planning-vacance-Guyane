@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const multer = require('multer');
 
 const app = express();
 const PORT = process.env.PORT || 8081;
@@ -19,6 +20,8 @@ if (!JWT_SECRET) {
 const ITINERARY_FILE = path.join(__dirname, 'data', 'itinerary.json');
 const USERS_FILE = path.join(__dirname, 'data', 'users.json');
 const ANALYTICS_FILE = path.join(__dirname, 'data', 'analytics.json');
+// Répertoire des photos liées aux activités (persisté dans le volume backend-data)
+const PHOTOS_DIR = path.join(__dirname, 'data', 'photos');
 
 // Fonctions utilitaires pour lire/écrire les fichiers JSON
 function readItinerary() {
@@ -335,6 +338,103 @@ app.delete('/api/admin/itinerary/:id', authMiddleware, adminOnly, (req, res) => 
   } catch (err) {
     res.status(500).json({ error: 'Erreur de suppression' });
   }
+});
+
+// ==================== ROUTES PHOTOS D'ACTIVITÉ ====================
+// Accessibles à tout utilisateur authentifié (pas seulement admin).
+
+// Renvoie le dossier des photos d'une activité, en refusant tout id non numérique
+// (protection contre le path traversal).
+function activityPhotoDir(rawId) {
+  const id = parseInt(rawId, 10);
+  if (isNaN(id) || id < 0) return null;
+  return path.join(PHOTOS_DIR, String(id));
+}
+
+// Extensions d'images autorisées
+const ALLOWED_IMAGE_EXT = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic'];
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = activityPhotoDir(req.params.id);
+    if (!dir) return cb(new Error('Identifiant d\'activité invalide'));
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    // Nom unique et sûr : timestamp + aléatoire + extension d'origine
+    const ext = path.extname(file.originalname).toLowerCase();
+    const safeExt = ALLOWED_IMAGE_EXT.includes(ext) ? ext : '.jpg';
+    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 15 * 1024 * 1024 }, // 15 Mo par fichier
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) return cb(null, true);
+    cb(new Error('Seules les images sont autorisées'));
+  },
+});
+
+// Lister les photos d'une activité
+app.get('/api/activities/:id/photos', authMiddleware, (req, res) => {
+  try {
+    const dir = activityPhotoDir(req.params.id);
+    if (!dir) return res.status(400).json({ error: 'Identifiant invalide' });
+    if (!fs.existsSync(dir)) return res.json([]);
+    const files = fs.readdirSync(dir)
+      .filter(name => ALLOWED_IMAGE_EXT.includes(path.extname(name).toLowerCase()))
+      .map(name => {
+        const stat = fs.statSync(path.join(dir, name));
+        return { name, size: stat.size, uploadedAt: stat.mtime.getTime() };
+      })
+      .sort((a, b) => b.uploadedAt - a.uploadedAt);
+    res.json(files);
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur lecture des photos' });
+  }
+});
+
+// Uploader une ou plusieurs photos
+app.post('/api/activities/:id/photos', authMiddleware, upload.array('photos', 20), (req, res) => {
+  const uploaded = (req.files || []).map(f => f.filename);
+  res.status(201).json({ success: true, uploaded });
+});
+
+// Télécharger / afficher une photo (nom de fichier validé pour éviter le path traversal)
+app.get('/api/activities/:id/photos/:filename', authMiddleware, (req, res) => {
+  const dir = activityPhotoDir(req.params.id);
+  if (!dir) return res.status(400).json({ error: 'Identifiant invalide' });
+  const filename = path.basename(req.params.filename);
+  const filePath = path.join(dir, filename);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Photo non trouvée' });
+  if (req.query.download === '1') {
+    return res.download(filePath, filename);
+  }
+  res.sendFile(filePath);
+});
+
+// Supprimer une photo
+app.delete('/api/activities/:id/photos/:filename', authMiddleware, (req, res) => {
+  const dir = activityPhotoDir(req.params.id);
+  if (!dir) return res.status(400).json({ error: 'Identifiant invalide' });
+  const filename = path.basename(req.params.filename);
+  const filePath = path.join(dir, filename);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Photo non trouvée' });
+  try {
+    fs.unlinkSync(filePath);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur de suppression' });
+  }
+});
+
+// Gestion des erreurs multer (taille dépassée, type refusé, etc.)
+app.use((err, req, res, next) => {
+  if (err) return res.status(400).json({ error: err.message || 'Erreur lors de l\'upload' });
+  next();
 });
 
 app.listen(PORT, '0.0.0.0', () => {

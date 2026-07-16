@@ -1,0 +1,6 @@
+# Ne pas copier le node_modules du dépôt dans l'image : le Dockerfile fait
+# `npm install` qui reconstruit des dépendances complètes (dont multer). Sans
+# cette exclusion, le `COPY . .` écraserait ce résultat par un node_modules
+# obsolète et incomplet, provoquant des erreurs "Cannot find module" au runtime.
+node_modules
+npm-debug.log*

@@ -5,6 +5,7 @@ import './index.css'
 import App from './App.jsx'
 import AdminLogin from './components/AdminLogin.jsx'
 import AdminPanel from './components/AdminPanel.jsx'
+import ActivityPhotos from './components/ActivityPhotos.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -13,6 +14,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="/" element={<App />} />
         <Route path="/admin" element={<AdminLogin />} />
         <Route path="/admin/panel" element={<AdminPanel />} />
+        <Route path="/activity/:id" element={<ActivityPhotos />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,
