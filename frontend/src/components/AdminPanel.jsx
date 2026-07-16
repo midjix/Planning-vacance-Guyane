@@ -4,6 +4,7 @@ import { Save, Trash2, Plus, LogOut, ChevronDown, ChevronUp, Home, MapPin, Users
 import AdminUsers from './AdminUsers';
 import AdminStats from './AdminStats';
 import AdminProfile from './AdminProfile';
+import LocationPicker from './LocationPicker';
 import { formatDate } from '../utils/formatDate';
 import { getToken, getRole, clearAuth } from '../utils/auth';
 
@@ -411,8 +412,8 @@ const AdminPanel = () => {
                   />
                 </div>
 
-                {/* Row 4: Price, Providers, Coordinates */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Row 4: Price, Providers */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">Prix (€)</label>
                     <input
@@ -431,26 +432,15 @@ const AdminPanel = () => {
                       className="w-full px-3 py-2 bg-[#112211] border border-nature-light rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Latitude</label>
-                    <input
-                      type="number"
-                      step="0.0001"
-                      value={item.coordinates[0]}
-                      onChange={(e) => updateField(item.id, 'coordinates', [parseFloat(e.target.value) || 0, item.coordinates[1]])}
-                      className="w-full px-3 py-2 bg-[#112211] border border-nature-light rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Longitude</label>
-                    <input
-                      type="number"
-                      step="0.0001"
-                      value={item.coordinates[1]}
-                      onChange={(e) => updateField(item.id, 'coordinates', [item.coordinates[0], parseFloat(e.target.value) || 0])}
-                      className="w-full px-3 py-2 bg-[#112211] border border-nature-light rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
-                    />
-                  </div>
+                </div>
+
+                {/* Localisation de l'activité (carte) */}
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Localisation de l'activité</label>
+                  <LocationPicker
+                    coordinates={item.coordinates}
+                    onChange={(coords) => updateField(item.id, 'coordinates', coords)}
+                  />
                 </div>
 
                 {/* Accommodation Section */}
@@ -493,7 +483,7 @@ const AdminPanel = () => {
                       </label>
 
                       {!item.accommodation.isActivityAccommodation && (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="space-y-3">
                           <div>
                             <label className="block text-xs text-gray-400 mb-1">Nom du lieu</label>
                             <input
@@ -505,23 +495,10 @@ const AdminPanel = () => {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs text-gray-400 mb-1">Latitude</label>
-                            <input
-                              type="number"
-                              step="0.0001"
-                              value={item.accommodation.coordinates[0]}
-                              onChange={(e) => updateAccommodation(item.id, 'coordinates', [parseFloat(e.target.value) || 0, item.accommodation.coordinates[1]])}
-                              className="w-full px-3 py-2 bg-[#112211] border border-nature-light rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-400 mb-1">Longitude</label>
-                            <input
-                              type="number"
-                              step="0.0001"
-                              value={item.accommodation.coordinates[1]}
-                              onChange={(e) => updateAccommodation(item.id, 'coordinates', [item.accommodation.coordinates[0], parseFloat(e.target.value) || 0])}
-                              className="w-full px-3 py-2 bg-[#112211] border border-nature-light rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
+                            <label className="block text-xs text-gray-400 mb-1">Localisation de l'hébergement</label>
+                            <LocationPicker
+                              coordinates={item.accommodation.coordinates}
+                              onChange={(coords) => updateAccommodation(item.id, 'coordinates', coords)}
                             />
                           </div>
                         </div>
