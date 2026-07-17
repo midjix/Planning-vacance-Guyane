@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const crypto = require('crypto');
+const archiver = require('archiver');
 const { Transform } = require('stream');
 
 const app = express();
@@ -484,6 +485,24 @@ function activityPhotoDir(rawId) {
   return path.join(PHOTOS_DIR, String(id));
 }
 
+// Métadonnées par média (qui a uploadé, quand, nom d'origine), stockées dans un
+// fichier .meta.json à côté des fichiers de l'activité.
+function readPhotoMeta(dir) {
+  try {
+    const p = path.join(dir, '.meta.json');
+    if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf-8'));
+  } catch (err) { /* meta corrompu -> on repart de zéro */ }
+  return {};
+}
+function writePhotoMeta(dir, meta) {
+  try { fs.writeFileSync(path.join(dir, '.meta.json'), JSON.stringify(meta)); } catch (err) { /* best effort */ }
+}
+function recordUpload(dir, filename, username, originalName) {
+  const meta = readPhotoMeta(dir);
+  meta[filename] = { by: username || null, at: Date.now(), originalName: originalName || null };
+  writePhotoMeta(dir, meta);
+}
+
 // Extensions média autorisées (images + vidéos)
 const ALLOWED_MEDIA_EXT = [
   '.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic',
@@ -599,11 +618,13 @@ app.get('/api/activities/:id/photos', authMiddleware, (req, res) => {
     const dir = activityPhotoDir(req.params.id);
     if (!dir) return res.status(400).json({ error: 'Identifiant invalide' });
     if (!fs.existsSync(dir)) return res.json([]);
+    const meta = readPhotoMeta(dir);
     const files = fs.readdirSync(dir)
       .filter(name => ALLOWED_MEDIA_EXT.includes(path.extname(name).toLowerCase()))
       .map(name => {
         const stat = fs.statSync(path.join(dir, name));
-        return { name, size: stat.size, uploadedAt: stat.mtime.getTime() };
+        const m = meta[name] || {};
+        return { name, size: stat.size, uploadedAt: stat.mtime.getTime(), by: m.by || null, originalName: m.originalName || null };
       })
       .sort((a, b) => b.uploadedAt - a.uploadedAt);
     res.json(files);
@@ -615,9 +636,11 @@ app.get('/api/activities/:id/photos', authMiddleware, (req, res) => {
 // Uploader une ou plusieurs photos
 app.post('/api/activities/:id/photos', authMiddleware, upload.array('photos', 20), async (req, res) => {
   try {
-    // Chiffre chaque fichier au repos (no-op si aucune clé configurée).
+    const dir = activityPhotoDir(req.params.id);
+    // Chiffre chaque fichier au repos (no-op si aucune clé configurée) et enregistre l'auteur.
     for (const f of (req.files || [])) {
       await encryptFileInPlace(f.path);
+      recordUpload(dir, f.filename, req.user.username, f.originalname);
     }
     res.status(201).json({ success: true, uploaded: (req.files || []).map(f => f.filename) });
   } catch (err) {
@@ -694,10 +717,54 @@ app.delete('/api/activities/:id/photos/:filename', authMiddleware, (req, res) =>
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Photo non trouvée' });
   try {
     fs.unlinkSync(filePath);
+    const meta = readPhotoMeta(dir);
+    if (meta[filename]) { delete meta[filename]; writePhotoMeta(dir, meta); }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Erreur de suppression' });
   }
+});
+
+// Télécharger plusieurs médias en une archive zip
+app.post('/api/activities/:id/photos/zip', authMiddleware, (req, res) => {
+  const dir = activityPhotoDir(req.params.id);
+  if (!dir) return res.status(400).json({ error: 'Identifiant invalide' });
+  const names = Array.isArray(req.body.names) ? req.body.names : [];
+  if (names.length === 0) return res.status(400).json({ error: 'Aucun média sélectionné' });
+
+  const meta = readPhotoMeta(dir);
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', 'attachment; filename="medias.zip"');
+
+  const archive = archiver('zip', { zlib: { level: 0 } }); // niveau 0 : médias déjà compressés
+  archive.on('error', () => { if (!res.headersSent) res.status(500).end(); });
+  archive.pipe(res);
+
+  const usedNames = new Set();
+  for (const rawName of names) {
+    const filename = path.basename(String(rawName));
+    if (!ALLOWED_MEDIA_EXT.includes(path.extname(filename).toLowerCase())) continue;
+    const filePath = path.join(dir, filename);
+    if (!fs.existsSync(filePath)) continue;
+
+    // Nom dans l'archive : nom d'origine si connu, en évitant les collisions.
+    let entryName = (meta[filename] && meta[filename].originalName) || filename;
+    if (usedNames.has(entryName)) {
+      const ext = path.extname(entryName);
+      entryName = `${entryName.slice(0, -ext.length || undefined)}-${usedNames.size}${ext}`;
+    }
+    usedNames.add(entryName);
+
+    const { encrypted, iv } = readEncInfo(filePath);
+    if (encrypted) {
+      if (!MEDIA_KEY) continue;
+      const decipher = crypto.createDecipheriv('aes-256-ctr', MEDIA_KEY, iv);
+      archive.append(fs.createReadStream(filePath, { start: ENC_PREFIX_LEN }).pipe(decipher), { name: entryName });
+    } else {
+      archive.append(fs.createReadStream(filePath), { name: entryName });
+    }
+  }
+  archive.finalize();
 });
 
 // ============ Upload en morceaux (gros fichiers, jusqu'à 5 Go) ============
@@ -768,6 +835,7 @@ app.post('/api/activities/:id/uploads', authMiddleware, (req, res) => {
   fs.mkdirSync(sessionDir, { recursive: true });
   fs.writeFileSync(path.join(sessionDir, 'meta.json'), JSON.stringify({
     activityId: parseInt(req.params.id, 10), filename, size, mimetype, totalChunks,
+    uploadedBy: req.user.username || null,
   }));
   res.status(201).json({ uploadId, received: [] });
 });
@@ -823,6 +891,7 @@ app.post('/api/activities/:id/uploads/:uploadId/complete', authMiddleware, async
     const finalPath = path.join(dir, finalName);
     await assembleChunks(sessionDir, meta.totalChunks, finalPath);
     fs.rmSync(sessionDir, { recursive: true, force: true });
+    recordUpload(dir, finalName, meta.uploadedBy || req.user.username, meta.filename);
     const stat = fs.statSync(finalPath);
     res.status(201).json({ name: finalName, size: stat.size });
   } catch (err) {

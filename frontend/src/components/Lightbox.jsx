@@ -5,7 +5,7 @@ const VIDEO_EXT = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
 const isVideo = (name) => VIDEO_EXT.includes(name.slice(name.lastIndexOf('.')).toLowerCase());
 
 // Visionneuse plein écran : image en grand, vidéo streamée (Range) avec lecteur.
-const Lightbox = ({ items, index, streamUrl, onClose, onIndex }) => {
+const Lightbox = ({ items, index, streamUrl, onClose, onIndex, onDownload }) => {
   const item = items[index];
 
   useEffect(() => {
@@ -31,7 +31,7 @@ const Lightbox = ({ items, index, streamUrl, onClose, onIndex }) => {
           <a
             href={`${url}&download=1`}
             download
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); if (onDownload) onDownload(item.name); }}
             title="Télécharger"
             className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
           >
