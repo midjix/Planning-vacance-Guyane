@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useUploads } from '../context/UploadManager';
-import { X, ChevronDown, ChevronUp, CheckCircle2, AlertCircle, Loader2, UploadCloud } from 'lucide-react';
+import { X, ChevronDown, ChevronUp, CheckCircle2, AlertCircle, Loader2, UploadCloud, RotateCcw } from 'lucide-react';
 
 const fmtSize = (bytes) => {
   if (bytes < 1024) return `${bytes} o`;
@@ -21,12 +21,13 @@ const fmtEta = (s) => {
 };
 
 const UploadDock = () => {
-  const { uploads, cancel, dismiss, clearFinished } = useUploads();
+  const { uploads, cancel, retry, dismiss, clearFinished } = useUploads();
   const [collapsed, setCollapsed] = useState(false);
 
   if (uploads.length === 0) return null;
 
   const active = uploads.filter((u) => u.status === 'uploading' || u.status === 'queued').length;
+  const failed = uploads.filter((u) => u.status === 'error');
 
   return (
     <div className="fixed bottom-4 right-4 z-[200] w-80 max-w-[calc(100vw-2rem)] bg-nature-dark border border-nature-light rounded-xl shadow-2xl overflow-hidden text-white">
@@ -36,6 +37,11 @@ const UploadDock = () => {
           {active > 0 ? `Transferts (${active})` : 'Transferts terminés'}
         </div>
         <div className="flex items-center gap-1">
+          {failed.length > 0 && (
+            <button onClick={() => failed.forEach((u) => retry(u.id))} title="Réessayer les échecs" className="flex items-center gap-1 text-[11px] text-green-400 hover:text-green-300 px-1.5 transition-colors">
+              <RotateCcw className="w-3.5 h-3.5" /> Réessayer ({failed.length})
+            </button>
+          )}
           {active === 0 && (
             <button onClick={clearFinished} title="Effacer" className="p-1 text-gray-400 hover:text-white transition-colors">
               <X className="w-4 h-4" />
@@ -79,7 +85,12 @@ const UploadDock = () => {
                 </div>
 
                 {u.status === 'error' ? (
-                  <p className="text-xs text-red-400">{u.error}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-red-400 truncate">{u.error}</p>
+                    <button onClick={() => retry(u.id)} className="flex items-center gap-1 text-[11px] text-green-400 hover:text-green-300 shrink-0 transition-colors">
+                      <RotateCcw className="w-3 h-3" /> Réessayer
+                    </button>
+                  </div>
                 ) : u.status === 'canceled' ? (
                   <p className="text-xs text-gray-500">Annulé</p>
                 ) : (

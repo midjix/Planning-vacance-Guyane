@@ -12,8 +12,8 @@ const UploadContext = createContext(null);
 export const useUploads = () => useContext(UploadContext);
 
 const SINGLE_MAX = 50 * 1024 * 1024;   // seuil au-delà duquel on découpe
-const CHUNK_SIZE = 20 * 1024 * 1024;   // taille d'un morceau
-const CHUNK_RETRIES = 3;               // tentatives par morceau
+const CHUNK_SIZE = 8 * 1024 * 1024;    // taille d'un morceau (petit = plus résilient sur mobile)
+const CHUNK_RETRIES = 5;               // tentatives par morceau
 
 let counter = 0;
 
@@ -45,6 +45,7 @@ export const UploadProvider = ({ children }) => {
   const queueRef = useRef([]);
   const currentRef = useRef(null);
   const runningRef = useRef(false);
+  const itemsRef = useRef(new Map()); // id -> item (conserve le fichier pour un éventuel retry)
 
   const patch = useCallback((id, changes) => {
     setUploads((prev) => prev.map((u) => (u.id === id ? { ...u, ...changes } : u)));
@@ -68,14 +69,31 @@ export const UploadProvider = ({ children }) => {
       await xhrRequest({ method: 'POST', url: `/api/activities/${activityId}/photos`, body: form, headers: authHeader, onProgress: (e) => report(e.loaded), item });
     } else {
       const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-      const startRes = await xhrRequest({
-        method: 'POST',
-        url: `/api/activities/${activityId}/uploads`,
-        body: JSON.stringify({ filename: file.name, size: file.size, mimetype: file.type || 'application/octet-stream', totalChunks }),
-        headers: { ...authHeader, 'Content-Type': 'application/json' },
-        item,
-      });
-      const { uploadId, received = [] } = JSON.parse(startRes.responseText);
+
+      // Reprise : si l'item a déjà une session (retry), on récupère les morceaux
+      // déjà reçus pour ne pas tout ré-uploader. Sinon on ouvre une nouvelle session.
+      let uploadId = item.uploadId;
+      let received = [];
+      if (uploadId) {
+        try {
+          const st = await xhrRequest({ method: 'GET', url: `/api/activities/${activityId}/uploads/${uploadId}`, headers: authHeader, item });
+          received = JSON.parse(st.responseText).received || [];
+        } catch (err) {
+          if (err.canceled) throw err;
+          uploadId = null; // session expirée -> on recrée
+        }
+      }
+      if (!uploadId) {
+        const startRes = await xhrRequest({
+          method: 'POST',
+          url: `/api/activities/${activityId}/uploads`,
+          body: JSON.stringify({ filename: file.name, size: file.size, mimetype: file.type || 'application/octet-stream', totalChunks }),
+          headers: { ...authHeader, 'Content-Type': 'application/json' },
+          item,
+        });
+        uploadId = JSON.parse(startRes.responseText).uploadId;
+        item.uploadId = uploadId;
+      }
       const done = new Set(received);
       for (let i = 0; i < totalChunks; i += 1) {
         if (item.canceled) throw Object.assign(new Error('Annulé'), { canceled: true });
@@ -128,6 +146,7 @@ export const UploadProvider = ({ children }) => {
 
   const enqueue = useCallback((activityId, files) => {
     const items = Array.from(files).map((file) => ({ id: ++counter, activityId, file, canceled: false, xhr: null }));
+    items.forEach((it) => itemsRef.current.set(it.id, it));
     setUploads((prev) => [
       ...prev,
       ...items.map((it) => ({ id: it.id, activityId, name: it.file.name, size: it.file.size, loaded: 0, speed: 0, eta: null, status: 'queued', error: null })),
@@ -135,6 +154,16 @@ export const UploadProvider = ({ children }) => {
     queueRef.current.push(...items);
     pump();
   }, [pump]);
+
+  // Réessaie un fichier échoué : on reprend là où on s'était arrêté (morceaux déjà reçus).
+  const retry = useCallback((id) => {
+    const item = itemsRef.current.get(id);
+    if (!item) return;
+    item.canceled = false;
+    patch(id, { status: 'queued', error: null, loaded: 0 });
+    queueRef.current.push(item);
+    pump();
+  }, [patch, pump]);
 
   const cancel = useCallback((id) => {
     const cur = currentRef.current;
@@ -148,6 +177,7 @@ export const UploadProvider = ({ children }) => {
   }, [patch]);
 
   const dismiss = useCallback((id) => {
+    itemsRef.current.delete(id);
     setUploads((prev) => prev.filter((u) => u.id !== id));
   }, []);
 
@@ -166,7 +196,7 @@ export const UploadProvider = ({ children }) => {
   }, [hasActive]);
 
   return (
-    <UploadContext.Provider value={{ uploads, enqueue, cancel, dismiss, clearFinished, hasActive }}>
+    <UploadContext.Provider value={{ uploads, enqueue, cancel, retry, dismiss, clearFinished, hasActive }}>
       {children}
     </UploadContext.Provider>
   );
