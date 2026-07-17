@@ -5,6 +5,7 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 8081;
@@ -504,6 +505,129 @@ app.delete('/api/activities/:id/photos/:filename', authMiddleware, (req, res) =>
   } catch (err) {
     res.status(500).json({ error: 'Erreur de suppression' });
   }
+});
+
+// ============ Upload en morceaux (gros fichiers, jusqu'à 5 Go) ============
+// Contourne la limite de 100 Mo par requête (tunnel Cloudflare) en découpant
+// le fichier : chaque morceau reste sous la limite, le serveur réassemble.
+const UPLOADS_TMP = path.join(__dirname, 'data', 'uploads_tmp');
+const MAX_UPLOAD_SIZE = 5 * 1024 * 1024 * 1024; // 5 Go
+
+const isSafeUploadId = (v) => /^[a-f0-9]{16,}$/.test(v);
+
+// Nom de fichier final sûr et unique, extension déduite du nom d'origine ou du type MIME.
+function finalMediaName(filename, mimetype) {
+  const ext = path.extname(filename || '').toLowerCase();
+  const safeExt = ALLOWED_MEDIA_EXT.includes(ext)
+    ? ext
+    : (String(mimetype).startsWith('video/') ? '.mp4' : '.jpg');
+  return `${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`;
+}
+
+// Réassemble les morceaux (dans l'ordre) en un seul fichier, en flux (pas de
+// chargement complet en mémoire — indispensable pour 5 Go).
+function assembleChunks(sessionDir, totalChunks, finalPath) {
+  return new Promise((resolve, reject) => {
+    const out = fs.createWriteStream(finalPath);
+    out.on('error', reject);
+    let i = 0;
+    const next = () => {
+      if (i >= totalChunks) { out.end(resolve); return; }
+      const rs = fs.createReadStream(path.join(sessionDir, `chunk_${i}`));
+      rs.on('error', reject);
+      rs.on('end', () => { i += 1; next(); });
+      rs.pipe(out, { end: false });
+    };
+    next();
+  });
+}
+
+// Démarrer une session d'upload en morceaux
+app.post('/api/activities/:id/uploads', authMiddleware, (req, res) => {
+  const dir = activityPhotoDir(req.params.id);
+  if (!dir) return res.status(400).json({ error: 'Identifiant invalide' });
+  const { filename, size, mimetype, totalChunks } = req.body;
+  if (!filename || !Number.isFinite(size) || size <= 0 || size > MAX_UPLOAD_SIZE) {
+    return res.status(400).json({ error: 'Fichier invalide ou trop volumineux (max 5 Go)' });
+  }
+  if (!String(mimetype).startsWith('image/') && !String(mimetype).startsWith('video/')) {
+    return res.status(400).json({ error: 'Seules les images et vidéos sont autorisées' });
+  }
+  if (!Number.isInteger(totalChunks) || totalChunks < 1 || totalChunks > 100000) {
+    return res.status(400).json({ error: 'Découpage invalide' });
+  }
+  const uploadId = crypto.randomBytes(16).toString('hex');
+  const sessionDir = path.join(UPLOADS_TMP, uploadId);
+  fs.mkdirSync(sessionDir, { recursive: true });
+  fs.writeFileSync(path.join(sessionDir, 'meta.json'), JSON.stringify({
+    activityId: parseInt(req.params.id, 10), filename, size, mimetype, totalChunks,
+  }));
+  res.status(201).json({ uploadId, received: [] });
+});
+
+// Connaître les morceaux déjà reçus (reprise après une erreur réseau)
+app.get('/api/activities/:id/uploads/:uploadId', authMiddleware, (req, res) => {
+  if (!isSafeUploadId(req.params.uploadId)) return res.status(400).json({ error: 'Session invalide' });
+  const sessionDir = path.join(UPLOADS_TMP, req.params.uploadId);
+  if (!fs.existsSync(path.join(sessionDir, 'meta.json'))) return res.status(404).json({ error: 'Session introuvable' });
+  const received = fs.readdirSync(sessionDir)
+    .filter((n) => n.startsWith('chunk_'))
+    .map((n) => parseInt(n.slice(6), 10));
+  res.json({ received });
+});
+
+// Recevoir un morceau (corps binaire brut, streamé sur disque)
+app.put('/api/activities/:id/uploads/:uploadId/chunks/:index', authMiddleware, (req, res) => {
+  if (!isSafeUploadId(req.params.uploadId)) return res.status(400).json({ error: 'Session invalide' });
+  const index = parseInt(req.params.index, 10);
+  if (!Number.isInteger(index) || index < 0) return res.status(400).json({ error: 'Index invalide' });
+  const sessionDir = path.join(UPLOADS_TMP, req.params.uploadId);
+  if (!fs.existsSync(path.join(sessionDir, 'meta.json'))) return res.status(404).json({ error: 'Session introuvable' });
+  // Écrit dans un fichier .part puis renomme : un morceau n'est "reçu" que s'il est complet.
+  const tmpPath = path.join(sessionDir, `.chunk_${index}.part`);
+  const finalPath = path.join(sessionDir, `chunk_${index}`);
+  const ws = fs.createWriteStream(tmpPath);
+  req.pipe(ws);
+  ws.on('finish', () => {
+    try { fs.renameSync(tmpPath, finalPath); res.json({ ok: true, index }); }
+    catch (err) { res.status(500).json({ error: 'Erreur écriture morceau' }); }
+  });
+  ws.on('error', () => res.status(500).json({ error: 'Erreur écriture morceau' }));
+  req.on('error', () => ws.destroy());
+});
+
+// Finaliser : réassembler tous les morceaux dans le fichier définitif
+app.post('/api/activities/:id/uploads/:uploadId/complete', authMiddleware, async (req, res) => {
+  try {
+    if (!isSafeUploadId(req.params.uploadId)) return res.status(400).json({ error: 'Session invalide' });
+    const dir = activityPhotoDir(req.params.id);
+    if (!dir) return res.status(400).json({ error: 'Identifiant invalide' });
+    const sessionDir = path.join(UPLOADS_TMP, req.params.uploadId);
+    const metaPath = path.join(sessionDir, 'meta.json');
+    if (!fs.existsSync(metaPath)) return res.status(404).json({ error: 'Session introuvable' });
+    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+    for (let i = 0; i < meta.totalChunks; i += 1) {
+      if (!fs.existsSync(path.join(sessionDir, `chunk_${i}`))) {
+        return res.status(400).json({ error: `Morceau manquant (${i})` });
+      }
+    }
+    fs.mkdirSync(dir, { recursive: true });
+    const finalName = finalMediaName(meta.filename, meta.mimetype);
+    const finalPath = path.join(dir, finalName);
+    await assembleChunks(sessionDir, meta.totalChunks, finalPath);
+    fs.rmSync(sessionDir, { recursive: true, force: true });
+    const stat = fs.statSync(finalPath);
+    res.status(201).json({ name: finalName, size: stat.size });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur de finalisation' });
+  }
+});
+
+// Abandonner une session d'upload (nettoyage)
+app.delete('/api/activities/:id/uploads/:uploadId', authMiddleware, (req, res) => {
+  if (!isSafeUploadId(req.params.uploadId)) return res.status(400).json({ error: 'Session invalide' });
+  fs.rmSync(path.join(UPLOADS_TMP, req.params.uploadId), { recursive: true, force: true });
+  res.json({ success: true });
 });
 
 // Gestion des erreurs multer (taille dépassée, type refusé, etc.)
