@@ -13,6 +13,7 @@ services:
       # Valeurs lues depuis le fichier .env placé à côté de ce docker-compose.nas.yml
       - JWT_SECRET=${JWT_SECRET}
       - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
+      - MEDIA_ENCRYPTION_KEY=${MEDIA_ENCRYPTION_KEY}
     volumes:
       # Persiste les données modifiées via l'admin (sinon perdues à chaque mise à jour)
       - backend-data:/app/data

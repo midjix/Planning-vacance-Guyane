@@ -9,6 +9,7 @@ services:
       - PORT=8081
       - JWT_SECRET=${JWT_SECRET:-dev-secret-change-me}
       - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
+      - MEDIA_ENCRYPTION_KEY=${MEDIA_ENCRYPTION_KEY:-}
 
   frontend:
     build: ./frontend

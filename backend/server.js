@@ -17,6 +17,22 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
+// Clé de chiffrement des médias au repos (AES-256, 32 octets en hexadécimal).
+// Optionnelle : si absente, les fichiers sont stockés en clair (avec un avertissement).
+const MEDIA_KEY = (() => {
+  const hex = process.env.MEDIA_ENCRYPTION_KEY;
+  if (!hex) {
+    console.warn('MEDIA_ENCRYPTION_KEY non défini : les médias sont stockés EN CLAIR. Définis une clé (openssl rand -hex 32) pour activer le chiffrement.');
+    return null;
+  }
+  const buf = Buffer.from(hex, 'hex');
+  if (buf.length !== 32) {
+    console.error('Erreur: MEDIA_ENCRYPTION_KEY doit faire 32 octets (64 caractères hexadécimaux).');
+    process.exit(1);
+  }
+  return buf;
+})();
+
 // Chemin vers les fichiers de données
 const ITINERARY_FILE = path.join(__dirname, 'data', 'itinerary.json');
 const USERS_FILE = path.join(__dirname, 'data', 'users.json');
@@ -426,6 +442,47 @@ const ALLOWED_MEDIA_EXT = [
   '.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv',
 ];
 
+// ---- Chiffrement au repos (AES-256-CTR) ----
+// Format d'un fichier chiffré : [magic 8 octets][IV 16 octets][ciphertext].
+const ENC_MAGIC = Buffer.from('ENCv1\0\0\0', 'binary');
+const ENC_PREFIX_LEN = ENC_MAGIC.length + 16;
+
+// Chiffre un flux lisible vers destPath (magic + IV + contenu chiffré).
+function encryptStreamTo(readable, destPath) {
+  return new Promise((resolve, reject) => {
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-ctr', MEDIA_KEY, iv);
+    const out = fs.createWriteStream(destPath);
+    out.on('error', reject);
+    out.on('finish', resolve);
+    out.write(ENC_MAGIC);
+    out.write(iv);
+    readable.on('error', reject);
+    readable.pipe(cipher).pipe(out);
+  });
+}
+
+// Chiffre un fichier déjà écrit, sur place (no-op si pas de clé).
+async function encryptFileInPlace(filePath) {
+  if (!MEDIA_KEY) return;
+  const tmp = `${filePath}.enc.tmp`;
+  await encryptStreamTo(fs.createReadStream(filePath), tmp);
+  fs.renameSync(tmp, filePath);
+}
+
+// Lit l'en-tête d'un fichier et indique s'il est chiffré, avec son IV.
+function readEncInfo(filePath) {
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const head = Buffer.alloc(ENC_PREFIX_LEN);
+    const n = fs.readSync(fd, head, 0, ENC_PREFIX_LEN, 0);
+    const encrypted = n >= ENC_PREFIX_LEN && head.subarray(0, ENC_MAGIC.length).equals(ENC_MAGIC);
+    return { encrypted, iv: encrypted ? head.subarray(ENC_MAGIC.length, ENC_PREFIX_LEN) : null };
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = activityPhotoDir(req.params.id);
@@ -474,22 +531,46 @@ app.get('/api/activities/:id/photos', authMiddleware, (req, res) => {
 });
 
 // Uploader une ou plusieurs photos
-app.post('/api/activities/:id/photos', authMiddleware, upload.array('photos', 20), (req, res) => {
-  const uploaded = (req.files || []).map(f => f.filename);
-  res.status(201).json({ success: true, uploaded });
+app.post('/api/activities/:id/photos', authMiddleware, upload.array('photos', 20), async (req, res) => {
+  try {
+    // Chiffre chaque fichier au repos (no-op si aucune clé configurée).
+    for (const f of (req.files || [])) {
+      await encryptFileInPlace(f.path);
+    }
+    res.status(201).json({ success: true, uploaded: (req.files || []).map(f => f.filename) });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur de chiffrement du média' });
+  }
 });
 
-// Télécharger / afficher une photo (nom de fichier validé pour éviter le path traversal)
+// Télécharger / afficher un média (nom de fichier validé pour éviter le path traversal)
 app.get('/api/activities/:id/photos/:filename', authMiddleware, (req, res) => {
   const dir = activityPhotoDir(req.params.id);
   if (!dir) return res.status(400).json({ error: 'Identifiant invalide' });
   const filename = path.basename(req.params.filename);
   const filePath = path.join(dir, filename);
-  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Photo non trouvée' });
-  if (req.query.download === '1') {
-    return res.download(filePath, filename);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Média non trouvé' });
+
+  const download = req.query.download === '1';
+  const { encrypted, iv } = readEncInfo(filePath);
+
+  // Fichiers en clair (ou anciens médias antérieurs au chiffrement) : service direct.
+  if (!encrypted) {
+    if (download) return res.download(filePath, filename);
+    return res.sendFile(filePath);
   }
-  res.sendFile(filePath);
+
+  // Fichiers chiffrés : déchiffrement à la volée.
+  if (!MEDIA_KEY) return res.status(500).json({ error: 'Clé de déchiffrement manquante côté serveur' });
+  const stat = fs.statSync(filePath);
+  res.type(path.extname(filename));
+  res.setHeader('Content-Length', stat.size - ENC_PREFIX_LEN);
+  if (download) res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  const decipher = crypto.createDecipheriv('aes-256-ctr', MEDIA_KEY, iv);
+  fs.createReadStream(filePath, { start: ENC_PREFIX_LEN })
+    .on('error', () => { if (!res.headersSent) res.status(500).end(); })
+    .pipe(decipher)
+    .pipe(res);
 });
 
 // Supprimer une photo
@@ -525,18 +606,32 @@ function finalMediaName(filename, mimetype) {
 }
 
 // Réassemble les morceaux (dans l'ordre) en un seul fichier, en flux (pas de
-// chargement complet en mémoire — indispensable pour 5 Go).
+// chargement complet en mémoire — indispensable pour 5 Go). Chiffre à la volée
+// si une clé est configurée.
 function assembleChunks(sessionDir, totalChunks, finalPath) {
   return new Promise((resolve, reject) => {
     const out = fs.createWriteStream(finalPath);
     out.on('error', reject);
+    out.on('finish', resolve);
+
+    let dest = out;
+    if (MEDIA_KEY) {
+      const iv = crypto.randomBytes(16);
+      out.write(ENC_MAGIC);
+      out.write(iv);
+      const cipher = crypto.createCipheriv('aes-256-ctr', MEDIA_KEY, iv);
+      cipher.on('error', reject);
+      cipher.pipe(out);
+      dest = cipher;
+    }
+
     let i = 0;
     const next = () => {
-      if (i >= totalChunks) { out.end(resolve); return; }
+      if (i >= totalChunks) { dest.end(); return; }
       const rs = fs.createReadStream(path.join(sessionDir, `chunk_${i}`));
       rs.on('error', reject);
       rs.on('end', () => { i += 1; next(); });
-      rs.pipe(out, { end: false });
+      rs.pipe(dest, { end: false });
     };
     next();
   });
