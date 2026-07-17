@@ -419,8 +419,11 @@ function activityPhotoDir(rawId) {
   return path.join(PHOTOS_DIR, String(id));
 }
 
-// Extensions d'images autorisées
-const ALLOWED_IMAGE_EXT = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic'];
+// Extensions média autorisées (images + vidéos)
+const ALLOWED_MEDIA_EXT = [
+  '.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic',
+  '.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv',
+];
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -432,17 +435,21 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => {
     // Nom unique et sûr : timestamp + aléatoire + extension d'origine
     const ext = path.extname(file.originalname).toLowerCase();
-    const safeExt = ALLOWED_IMAGE_EXT.includes(ext) ? ext : '.jpg';
+    const safeExt = ALLOWED_MEDIA_EXT.includes(ext)
+      ? ext
+      : (file.mimetype.startsWith('video/') ? '.mp4' : '.jpg');
     cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`);
   },
 });
 
 const upload = multer({
+  // Limite par requête : 100 Mo (plafond du tunnel Cloudflare). Les fichiers
+  // plus lourds passeront par l'upload en morceaux (phase suivante).
   storage,
-  limits: { fileSize: 15 * 1024 * 1024 }, // 15 Mo par fichier
+  limits: { fileSize: 100 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) return cb(null, true);
-    cb(new Error('Seules les images sont autorisées'));
+    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) return cb(null, true);
+    cb(new Error('Seules les images et vidéos sont autorisées'));
   },
 });
 
@@ -453,7 +460,7 @@ app.get('/api/activities/:id/photos', authMiddleware, (req, res) => {
     if (!dir) return res.status(400).json({ error: 'Identifiant invalide' });
     if (!fs.existsSync(dir)) return res.json([]);
     const files = fs.readdirSync(dir)
-      .filter(name => ALLOWED_IMAGE_EXT.includes(path.extname(name).toLowerCase()))
+      .filter(name => ALLOWED_MEDIA_EXT.includes(path.extname(name).toLowerCase()))
       .map(name => {
         const stat = fs.statSync(path.join(dir, name));
         return { name, size: stat.size, uploadedAt: stat.mtime.getTime() };
