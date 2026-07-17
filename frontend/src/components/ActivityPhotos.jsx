@@ -1,73 +1,42 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Upload, Download, Trash2, ImageOff, Loader2, Camera } from 'lucide-react';
+import { ArrowLeft, Upload, Download, Trash2, Camera, Play } from 'lucide-react';
 import { formatDate } from '../utils/formatDate';
 import { getToken } from '../utils/auth';
 import { useUploads } from '../context/UploadManager';
+import Lightbox from './Lightbox';
 
 const authHeaders = (token) => ({ Authorization: `Bearer ${token}` });
 
 const VIDEO_EXT = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
 const isVideo = (name) => VIDEO_EXT.includes(name.slice(name.lastIndexOf('.')).toLowerCase());
 
-// Vignette qui charge le média via fetch authentifié : les fichiers ne sont pas
-// servis publiquement, il faut donc les récupérer en blob avec le token.
-const MediaThumb = ({ id, media, token, onDelete }) => {
-  const [url, setUrl] = useState(null);
-  const [error, setError] = useState(false);
-  const video = isVideo(media.name);
-
-  useEffect(() => {
-    let cancelled = false;
-    let objectUrl;
-    fetch(`/api/activities/${id}/photos/${media.name}`, { headers: authHeaders(token) })
-      .then((res) => { if (!res.ok) throw new Error(); return res.blob(); })
-      .then((blob) => {
-        if (cancelled) return;
-        objectUrl = URL.createObjectURL(blob);
-        setUrl(objectUrl);
-      })
-      .catch(() => setError(true));
-    return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [id, media.name, token]);
-
-  const handleDownload = async () => {
-    try {
-      const res = await fetch(`/api/activities/${id}/photos/${media.name}?download=1`, { headers: authHeaders(token) });
-      const blob = await res.blob();
-      const href = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = href;
-      a.download = media.name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(href);
-    } catch {
-      /* silencieux */
-    }
-  };
-
+// Vignette : streaming direct via URL (token média en query). Les vidéos sont en
+// preload="metadata" -> seule la 1re image est chargée, pas le fichier entier.
+const MediaThumb = ({ url, name, onOpen, onDelete }) => {
+  const video = isVideo(name);
   return (
-    <div className="group relative rounded-lg overflow-hidden border border-nature-light bg-nature-dark aspect-square">
-      {error ? (
-        <div className="w-full h-full flex items-center justify-center text-gray-500">
-          <ImageOff className="w-8 h-8" />
-        </div>
-      ) : !url ? (
-        <div className="w-full h-full flex items-center justify-center text-gray-500">
-          <Loader2 className="w-6 h-6 animate-spin" />
-        </div>
-      ) : video ? (
-        <video src={url} controls className="w-full h-full object-cover bg-black" />
+    <div
+      className="group relative rounded-lg overflow-hidden border border-nature-light bg-nature-dark aspect-square cursor-pointer"
+      onClick={onOpen}
+    >
+      {video ? (
+        <>
+          <video src={`${url}#t=0.1`} preload="metadata" muted playsInline className="w-full h-full object-cover bg-black" />
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-11 h-11 rounded-full bg-black/50 flex items-center justify-center">
+              <Play className="w-5 h-5 text-white translate-x-0.5" />
+            </div>
+          </div>
+        </>
       ) : (
         <img src={url} alt="Média de l'activité" className="w-full h-full object-cover" />
       )}
       <div className="absolute inset-x-0 bottom-0 flex justify-end gap-2 p-2 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-        <button onClick={handleDownload} title="Télécharger" className="p-2 bg-black/60 hover:bg-black/80 rounded-lg text-white transition-colors pointer-events-auto">
+        <a href={`${url}&download=1`} download onClick={(e) => e.stopPropagation()} title="Télécharger" className="p-2 bg-black/60 hover:bg-black/80 rounded-lg text-white transition-colors pointer-events-auto">
           <Download className="w-4 h-4" />
-        </button>
-        <button onClick={() => onDelete(media.name)} title="Supprimer" className="p-2 bg-red-900/70 hover:bg-red-800 rounded-lg text-white transition-colors pointer-events-auto">
+        </a>
+        <button onClick={(e) => { e.stopPropagation(); onDelete(name); }} title="Supprimer" className="p-2 bg-red-900/70 hover:bg-red-800 rounded-lg text-white transition-colors pointer-events-auto">
           <Trash2 className="w-4 h-4" />
         </button>
       </div>
@@ -83,8 +52,15 @@ const ActivityPhotos = () => {
 
   const [activity, setActivity] = useState(null);
   const [photos, setPhotos] = useState([]);
+  const [mediaToken, setMediaToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [lightboxIndex, setLightboxIndex] = useState(null);
+
+  const streamUrl = useCallback(
+    (name) => `/api/activities/${id}/photos/${encodeURIComponent(name)}?token=${mediaToken}`,
+    [id, mediaToken],
+  );
 
   const loadPhotos = useCallback(async () => {
     try {
@@ -103,7 +79,11 @@ const ActivityPhotos = () => {
       .then((res) => res.json())
       .then((data) => setActivity(data.find((a) => a.id === parseInt(id, 10)) || null))
       .catch(() => {});
-    loadPhotos().finally(() => setLoading(false));
+    const getMediaToken = fetch('/api/media-token', { method: 'POST', headers: authHeaders(token) })
+      .then((res) => res.json())
+      .then((data) => setMediaToken(data.token))
+      .catch(() => setError('Impossible de préparer la lecture des médias'));
+    Promise.all([loadPhotos(), getMediaToken]).finally(() => setLoading(false));
   }, [id, token, navigate, loadPhotos]);
 
   // Rafraîchit la galerie quand un transfert de cette activité se termine.
@@ -126,6 +106,7 @@ const ActivityPhotos = () => {
       const res = await fetch(`/api/activities/${id}/photos/${name}`, { method: 'DELETE', headers: authHeaders(token) });
       if (!res.ok) throw new Error();
       setPhotos((prev) => prev.filter((p) => p.name !== name));
+      setLightboxIndex(null);
     } catch {
       setError('Erreur de suppression');
     }
@@ -176,12 +157,28 @@ const ActivityPhotos = () => {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {photos.map((media) => (
-              <MediaThumb key={media.name} id={id} media={media} token={token} onDelete={handleDelete} />
+            {photos.map((media, i) => (
+              <MediaThumb
+                key={media.name}
+                url={streamUrl(media.name)}
+                name={media.name}
+                onOpen={() => setLightboxIndex(i)}
+                onDelete={handleDelete}
+              />
             ))}
           </div>
         )}
       </main>
+
+      {lightboxIndex !== null && (
+        <Lightbox
+          items={photos}
+          index={lightboxIndex}
+          streamUrl={streamUrl}
+          onClose={() => setLightboxIndex(null)}
+          onIndex={setLightboxIndex}
+        />
+      )}
     </div>
   );
 };

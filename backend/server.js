@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const crypto = require('crypto');
+const { Transform } = require('stream');
 
 const app = express();
 const PORT = process.env.PORT || 8081;
@@ -89,7 +90,7 @@ function writeAnalytics(data) {
 app.use(cors());
 app.use(express.json());
 
-// Middleware d'authentification JWT
+// Middleware d'authentification JWT (session uniquement)
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -98,7 +99,27 @@ function authMiddleware(req, res, next) {
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+    // Les tokens spécialisés (invitation, média) ne sont pas des sessions : on les refuse ici.
+    if (decoded.type) return res.status(401).json({ error: 'Token invalide' });
     req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Token invalide ou expiré' });
+  }
+}
+
+// Auth pour la lecture des médias : accepte un token de session (en-tête) OU un
+// token média court passé en query (?token=), car <img>/<video> ne peuvent pas
+// envoyer d'en-tête d'autorisation. Le token média (type "media") ne donne accès
+// qu'à cette route, jamais aux actions privilégiées (bloqué par authMiddleware).
+function mediaAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  const token = (authHeader && authHeader.startsWith('Bearer '))
+    ? authHeader.split(' ')[1]
+    : (typeof req.query.token === 'string' ? req.query.token : null);
+  if (!token) return res.status(401).json({ error: 'Token manquant' });
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Token invalide ou expiré' });
@@ -171,6 +192,12 @@ app.post('/api/admin/login', (req, res) => {
 // Prolonger la session courante ("rester connecté" 30 jours sur l'appareil)
 app.post('/api/auth/remember', authMiddleware, (req, res) => {
   res.json({ token: issueToken(req.user, '30d') });
+});
+
+// Token court dédié à la lecture des médias (utilisable en query dans les URLs
+// <img>/<video>). Périmètre réduit : ne permet que de lire les médias.
+app.post('/api/media-token', authMiddleware, (req, res) => {
+  res.json({ token: jwt.sign({ type: 'media', id: req.user.id }, JWT_SECRET, { expiresIn: '6h' }) });
 });
 
 // ==================== ROUTES INVITATIONS ====================
@@ -483,6 +510,40 @@ function readEncInfo(filePath) {
   }
 }
 
+// Compteur CTR = IV avancé de `blockIndex` blocs (addition 128 bits).
+// Permet de commencer le déchiffrement à n'importe quel bloc -> lecture par plage (seek vidéo).
+function ivForBlock(iv, blockIndex) {
+  let n = 0n;
+  for (const b of iv) n = (n << 8n) | BigInt(b);
+  n = (n + BigInt(blockIndex)) & ((1n << 128n) - 1n);
+  const out = Buffer.alloc(16);
+  for (let i = 15; i >= 0; i -= 1) { out[i] = Number(n & 0xffn); n >>= 8n; }
+  return out;
+}
+
+// Transform qui ignore `skip` octets en tête puis n'en laisse passer que `length`.
+// Sert à extraire la plage exacte après un déchiffrement aligné sur les blocs.
+function sliceTransform(skip, length) {
+  let skipped = 0;
+  let sent = 0;
+  return new Transform({
+    transform(chunk, enc, cb) {
+      if (sent >= length) return cb();
+      let c = chunk;
+      if (skipped < skip) {
+        const drop = Math.min(skip - skipped, c.length);
+        skipped += drop;
+        c = c.subarray(drop);
+      }
+      if (c.length === 0) return cb();
+      const remaining = length - sent;
+      if (c.length > remaining) c = c.subarray(0, remaining);
+      sent += c.length;
+      cb(null, c);
+    },
+  });
+}
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = activityPhotoDir(req.params.id);
@@ -543,8 +604,10 @@ app.post('/api/activities/:id/photos', authMiddleware, upload.array('photos', 20
   }
 });
 
-// Télécharger / afficher un média (nom de fichier validé pour éviter le path traversal)
-app.get('/api/activities/:id/photos/:filename', authMiddleware, (req, res) => {
+// Télécharger / afficher / streamer un média (nom de fichier validé anti path-traversal).
+// Auth par en-tête OU token média en query (pour <img>/<video>). Supporte le
+// streaming par plage (Range) pour la lecture vidéo avec avance/recul.
+app.get('/api/activities/:id/photos/:filename', mediaAuth, (req, res) => {
   const dir = activityPhotoDir(req.params.id);
   if (!dir) return res.status(400).json({ error: 'Identifiant invalide' });
   const filename = path.basename(req.params.filename);
@@ -554,22 +617,50 @@ app.get('/api/activities/:id/photos/:filename', authMiddleware, (req, res) => {
   const download = req.query.download === '1';
   const { encrypted, iv } = readEncInfo(filePath);
 
-  // Fichiers en clair (ou anciens médias antérieurs au chiffrement) : service direct.
+  // Fichiers en clair (ou anciens médias) : Express gère le Range tout seul.
   if (!encrypted) {
     if (download) return res.download(filePath, filename);
     return res.sendFile(filePath);
   }
 
-  // Fichiers chiffrés : déchiffrement à la volée.
+  // Fichiers chiffrés : déchiffrement à la volée, avec support du Range.
   if (!MEDIA_KEY) return res.status(500).json({ error: 'Clé de déchiffrement manquante côté serveur' });
   const stat = fs.statSync(filePath);
+  const total = stat.size - ENC_PREFIX_LEN;
+
   res.type(path.extname(filename));
-  res.setHeader('Content-Length', stat.size - ENC_PREFIX_LEN);
+  res.setHeader('Accept-Ranges', 'bytes');
   if (download) res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  const decipher = crypto.createDecipheriv('aes-256-ctr', MEDIA_KEY, iv);
-  fs.createReadStream(filePath, { start: ENC_PREFIX_LEN })
+
+  let start = 0;
+  let end = total - 1;
+  const rangeHeader = req.headers.range;
+  if (rangeHeader && !download) {
+    const m = /bytes=(\d*)-(\d*)/.exec(rangeHeader);
+    if (m) {
+      if (m[1]) start = parseInt(m[1], 10);
+      if (m[2]) end = parseInt(m[2], 10);
+      if (Number.isNaN(start)) start = 0;
+      if (Number.isNaN(end) || end >= total) end = total - 1;
+      if (start > end || start >= total) {
+        res.status(416).setHeader('Content-Range', `bytes */${total}`);
+        return res.end();
+      }
+      res.status(206).setHeader('Content-Range', `bytes ${start}-${end}/${total}`);
+    }
+  }
+
+  const length = end - start + 1;
+  res.setHeader('Content-Length', length);
+
+  // Déchiffrement CTR aligné sur les blocs : on démarre au bloc contenant `start`.
+  const startBlock = Math.floor(start / 16);
+  const skip = start - startBlock * 16;
+  const decipher = crypto.createDecipheriv('aes-256-ctr', MEDIA_KEY, ivForBlock(iv, startBlock));
+  fs.createReadStream(filePath, { start: ENC_PREFIX_LEN + startBlock * 16, end: ENC_PREFIX_LEN + end })
     .on('error', () => { if (!res.headersSent) res.status(500).end(); })
     .pipe(decipher)
+    .pipe(sliceTransform(skip, length))
     .pipe(res);
 });
 
