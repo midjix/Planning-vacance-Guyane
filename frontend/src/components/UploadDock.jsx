@@ -47,6 +47,13 @@ const UploadDock = () => {
         </div>
       </div>
 
+      {active > 0 && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-yellow-900/30 border-b border-yellow-500/30 text-yellow-300 text-[11px]">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <span>Ne rechargez pas et ne fermez pas la page pendant le transfert. Vous pouvez naviguer dans le site.</span>
+        </div>
+      )}
+
       {!collapsed && (
         <div className="max-h-72 overflow-y-auto divide-y divide-nature-light/40">
           {uploads.map((u) => {

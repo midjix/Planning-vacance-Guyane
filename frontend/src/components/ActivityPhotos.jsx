@@ -165,7 +165,7 @@ const ActivityPhotos = () => {
         <label className="flex flex-col items-center justify-center gap-2 w-full py-8 mb-8 border-2 border-dashed border-nature-light rounded-xl cursor-pointer transition-all hover:border-green-500 hover:bg-green-500/5">
           <Upload className="w-8 h-8 text-green-400" />
           <span className="text-sm font-medium text-gray-300">Ajouter des photos ou vidéos</span>
-          <span className="text-xs text-gray-500">Cliquez ou déposez vos fichiers ici — jusqu'à 100 Mo par fichier. Le transfert continue pendant votre navigation.</span>
+          <span className="text-xs text-gray-500">Cliquez ou déposez vos fichiers ici — jusqu'à 5 Go par fichier (vidéos incluses). Le transfert continue pendant votre navigation dans le site ; évitez juste de recharger la page.</span>
           <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleFiles} />
         </label>
 

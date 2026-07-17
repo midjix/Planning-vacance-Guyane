@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react';
 import { getToken } from '../utils/auth';
 
 // Gestionnaire d'upload global : vit à la racine de l'app pour que les transferts
@@ -155,8 +155,18 @@ export const UploadProvider = ({ children }) => {
     setUploads((prev) => prev.filter((u) => u.status === 'uploading' || u.status === 'queued'));
   }, []);
 
+  // Avertit avant de recharger/fermer l'onglet tant qu'un transfert est actif
+  // (un rechargement interrompt l'upload, l'objet fichier étant alors perdu).
+  const hasActive = uploads.some((u) => u.status === 'uploading' || u.status === 'queued');
+  useEffect(() => {
+    if (!hasActive) return undefined;
+    const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [hasActive]);
+
   return (
-    <UploadContext.Provider value={{ uploads, enqueue, cancel, dismiss, clearFinished }}>
+    <UploadContext.Provider value={{ uploads, enqueue, cancel, dismiss, clearFinished, hasActive }}>
       {children}
     </UploadContext.Provider>
   );
