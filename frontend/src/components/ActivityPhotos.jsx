@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Upload, Download, Trash2, Camera, Play, CheckCircle2, Circle, DownloadCloud, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, Upload, Download, Trash2, Camera, Play, CheckCircle2, Circle, DownloadCloud, Share2, X, Loader2 } from 'lucide-react';
 import { formatDate } from '../utils/formatDate';
 import { getToken, getUsername } from '../utils/auth';
 import { useUploads } from '../context/UploadManager';
@@ -11,6 +11,20 @@ const authHeaders = (token) => ({ Authorization: `Bearer ${token}` });
 const VIDEO_EXT = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
 const isVideo = (name) => VIDEO_EXT.includes(name.slice(name.lastIndexOf('.')).toLowerCase());
 
+// Seuils au-delà desquels on repasse au zip même sur mobile (partage trop lourd).
+const SHARE_MAX_COUNT = 30;
+const SHARE_MAX_BYTES = 500 * 1024 * 1024;
+
+// Le partage de fichiers natif (feuille de partage -> "Enregistrer dans Photos")
+// n'est disponible que sur mobile / certains OS. Détection réelle avec un fichier factice.
+const canShareFiles = () => {
+  try {
+    return !!navigator.canShare && navigator.canShare({ files: [new File(['x'], 'x.png', { type: 'image/png' })] });
+  } catch {
+    return false;
+  }
+};
+
 // Suivi des médias déjà téléchargés, propre à l'appareil (localStorage).
 const dlKey = (id) => `downloaded:activity:${id}`;
 const loadDownloaded = (id) => {
@@ -20,7 +34,7 @@ const saveDownloaded = (id, set) => {
   try { localStorage.setItem(dlKey(id), JSON.stringify([...set])); } catch { /* ignore */ }
 };
 
-const MediaThumb = ({ url, name, by, mine, selected, onToggleSelect, onOpen, onDownload, onDelete }) => {
+const MediaThumb = ({ url, name, by, mine, selected, onToggleSelect, onOpen, onSave, onDelete }) => {
   const video = isVideo(name);
   return (
     <div
@@ -60,9 +74,9 @@ const MediaThumb = ({ url, name, by, mine, selected, onToggleSelect, onOpen, onD
 
       {/* Actions */}
       <div className="absolute inset-x-0 bottom-0 flex justify-end gap-2 p-2 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-        <a href={`${url}&download=1`} download onClick={(e) => { e.stopPropagation(); onDownload(); }} title="Télécharger" className="p-2 bg-black/60 hover:bg-black/80 rounded-lg text-white transition-colors pointer-events-auto">
+        <button onClick={(e) => { e.stopPropagation(); onSave(); }} title="Enregistrer / télécharger" className="p-2 bg-black/60 hover:bg-black/80 rounded-lg text-white transition-colors pointer-events-auto">
           <Download className="w-4 h-4" />
-        </a>
+        </button>
         <button onClick={(e) => { e.stopPropagation(); onDelete(name); }} title="Supprimer" className="p-2 bg-red-900/70 hover:bg-red-800 rounded-lg text-white transition-colors pointer-events-auto">
           <Trash2 className="w-4 h-4" />
         </button>
@@ -101,7 +115,7 @@ const ActivityPhotos = () => {
   const [selected, setSelected] = useState(() => new Set());
   const [filterOthers, setFilterOthers] = useState(false);
   const [filterNotDownloaded, setFilterNotDownloaded] = useState(false);
-  const [zipping, setZipping] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const streamUrl = useCallback(
     (name) => `/api/activities/${id}/photos/${encodeURIComponent(name)}?token=${mediaToken}`,
@@ -149,6 +163,78 @@ const ActivityPhotos = () => {
     });
   }, [id]);
 
+  const clearSelection = () => setSelected(new Set());
+
+  // --- Téléchargement adaptatif ---
+  const fetchAsFiles = async (list) => Promise.all(list.map(async (p) => {
+    const res = await fetch(streamUrl(p.name));
+    const blob = await res.blob();
+    return new File([blob], p.originalName || p.name, { type: blob.type || 'application/octet-stream' });
+  }));
+
+  const downloadSingle = (p) => {
+    const a = document.createElement('a');
+    a.href = `${streamUrl(p.name)}&download=1`;
+    a.download = p.originalName || p.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  const downloadZip = async (names) => {
+    const res = await fetch(`/api/activities/${id}/photos/zip`, {
+      method: 'POST',
+      headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ names }),
+    });
+    if (!res.ok) throw new Error();
+    const blob = await res.blob();
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = `${activity ? activity.title.replace(/[^\w-]+/g, '_') : 'medias'}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(href);
+  };
+
+  // Choisit le meilleur mode selon l'appareil et la quantité :
+  // - mobile + sélection raisonnable -> partage natif (enregistre dans la galerie)
+  // - sinon -> 1 fichier = téléchargement direct, plusieurs = zip
+  const saveMedia = async (names, fromSelection = false) => {
+    if (!names.length) return;
+    const list = photos.filter((p) => names.includes(p.name));
+    const totalSize = list.reduce((s, p) => s + (p.size || 0), 0);
+    const shareable = canShareFiles() && names.length <= SHARE_MAX_COUNT && totalSize <= SHARE_MAX_BYTES;
+
+    setSaving(true);
+    try {
+      if (shareable) {
+        try {
+          const files = await fetchAsFiles(list);
+          if (navigator.canShare({ files })) {
+            await navigator.share({ files, title: activity?.title || 'Médias Guyane' });
+            markDownloaded(names);
+            if (fromSelection) clearSelection();
+            return;
+          }
+        } catch (err) {
+          if (err && err.name === 'AbortError') return; // partage annulé par l'utilisateur
+          // autre erreur -> on retombe sur le téléchargement classique
+        }
+      }
+      if (names.length === 1) downloadSingle(list[0]);
+      else await downloadZip(names);
+      markDownloaded(names);
+      if (fromSelection) clearSelection();
+    } catch {
+      setError('Erreur lors du téléchargement');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleFiles = (e) => {
     const files = e.target.files;
     if (files && files.length > 0) enqueue(id, files);
@@ -184,36 +270,12 @@ const ActivityPhotos = () => {
   });
 
   const selectAllVisible = () => setSelected(new Set(visible.map((p) => p.name)));
-  const clearSelection = () => setSelected(new Set());
 
-  const handleBulkDownload = async () => {
-    const names = [...selected];
-    if (names.length === 0) return;
-    setZipping(true);
-    try {
-      const res = await fetch(`/api/activities/${id}/photos/zip`, {
-        method: 'POST',
-        headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ names }),
-      });
-      if (!res.ok) throw new Error();
-      const blob = await res.blob();
-      const href = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = href;
-      a.download = `${activity ? activity.title.replace(/[^\w-]+/g, '_') : 'medias'}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(href);
-      markDownloaded(names);
-      clearSelection();
-    } catch {
-      setError('Erreur lors du téléchargement groupé');
-    } finally {
-      setZipping(false);
-    }
-  };
+  // Le bouton de la barre de sélection s'adapte : "Enregistrer dans la galerie"
+  // (partage natif, mobile) ou "Télécharger (zip)".
+  const selectedList = photos.filter((p) => selected.has(p.name));
+  const selectedSize = selectedList.reduce((s, p) => s + (p.size || 0), 0);
+  const willShareSelection = canShareFiles() && selected.size <= SHARE_MAX_COUNT && selectedSize <= SHARE_MAX_BYTES;
 
   if (loading) {
     return (
@@ -245,12 +307,12 @@ const ActivityPhotos = () => {
             <div className="max-w-5xl mx-auto px-4 py-2 flex flex-wrap items-center gap-2">
               <span className="text-sm font-medium">{selected.size} sélectionné{selected.size > 1 ? 's' : ''}</span>
               <button
-                onClick={handleBulkDownload}
-                disabled={zipping}
+                onClick={() => saveMedia([...selected], true)}
+                disabled={saving}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-500 rounded-lg text-sm font-bold disabled:opacity-50 transition-colors"
               >
-                {zipping ? <Loader2 className="w-4 h-4 animate-spin" /> : <DownloadCloud className="w-4 h-4" />}
-                {zipping ? 'Préparation…' : 'Télécharger (zip)'}
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (willShareSelection ? <Share2 className="w-4 h-4" /> : <DownloadCloud className="w-4 h-4" />)}
+                {saving ? 'Préparation…' : (willShareSelection ? 'Enregistrer dans la galerie' : 'Télécharger (zip)')}
               </button>
               <button onClick={selectAllVisible} className="px-3 py-1.5 bg-nature border border-nature-light rounded-lg text-sm hover:bg-nature-light transition-colors">
                 Tout sélectionner
@@ -306,7 +368,7 @@ const ActivityPhotos = () => {
                 selected={selected.has(media.name)}
                 onToggleSelect={() => toggleSelect(media.name)}
                 onOpen={() => setLightboxIndex(photos.findIndex((p) => p.name === media.name))}
-                onDownload={() => markDownloaded([media.name])}
+                onSave={() => saveMedia([media.name])}
                 onDelete={handleDelete}
               />
             ))}
@@ -321,7 +383,7 @@ const ActivityPhotos = () => {
           streamUrl={streamUrl}
           onClose={() => setLightboxIndex(null)}
           onIndex={setLightboxIndex}
-          onDownload={(name) => markDownloaded([name])}
+          onSave={(name) => saveMedia([name])}
         />
       )}
     </div>

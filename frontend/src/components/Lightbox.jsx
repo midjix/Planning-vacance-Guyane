@@ -5,7 +5,7 @@ const VIDEO_EXT = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
 const isVideo = (name) => VIDEO_EXT.includes(name.slice(name.lastIndexOf('.')).toLowerCase());
 
 // Visionneuse plein écran : image en grand, vidéo streamée (Range) avec lecteur.
-const Lightbox = ({ items, index, streamUrl, onClose, onIndex, onDownload }) => {
+const Lightbox = ({ items, index, streamUrl, onClose, onIndex, onSave }) => {
   const item = items[index];
 
   useEffect(() => {
@@ -28,15 +28,13 @@ const Lightbox = ({ items, index, streamUrl, onClose, onIndex, onDownload }) => 
       <div className="absolute top-0 inset-x-0 flex items-center justify-between p-4 z-10">
         <span className="text-white/70 text-sm">{index + 1} / {items.length}</span>
         <div className="flex items-center gap-2">
-          <a
-            href={`${url}&download=1`}
-            download
-            onClick={(e) => { e.stopPropagation(); if (onDownload) onDownload(item.name); }}
-            title="Télécharger"
+          <button
+            onClick={(e) => { e.stopPropagation(); if (onSave) onSave(item.name); }}
+            title="Enregistrer / télécharger"
             className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
           >
             <Download className="w-5 h-5" />
-          </a>
+          </button>
           <button onClick={onClose} title="Fermer" className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors">
             <X className="w-5 h-5" />
           </button>
