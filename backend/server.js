@@ -11,12 +11,33 @@ const { Transform } = require('stream');
 const app = express();
 const PORT = process.env.PORT || 8081;
 
-// Clé secrète pour JWT — doit être fournie via la variable d'environnement JWT_SECRET
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  console.error('Erreur: la variable d\'environnement JWT_SECRET est manquante. Définis-la avant de démarrer le serveur.');
-  process.exit(1);
-}
+// Clé secrète pour signer les JWT. Elle est PERSISTÉE dans le volume de données
+// (data/.jwt_secret) et devient la référence : une fois créée, elle ne change
+// plus, même si la variable d'environnement varie d'un déploiement à l'autre.
+// Sinon les utilisateurs "restés connectés" seraient déconnectés à chaque
+// redéploiement (leurs tokens deviendraient invalides).
+const JWT_SECRET = (() => {
+  const secretFile = path.join(__dirname, 'data', '.jwt_secret');
+  try {
+    if (fs.existsSync(secretFile)) {
+      const existing = fs.readFileSync(secretFile, 'utf-8').trim();
+      if (existing) return existing;
+    }
+    // Première initialisation : on part de la valeur d'env si fournie (pour
+    // conserver les sessions existantes), sinon on génère une clé aléatoire forte.
+    const seed = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+    fs.mkdirSync(path.dirname(secretFile), { recursive: true });
+    fs.writeFileSync(secretFile, seed, 'utf-8');
+    if (!process.env.JWT_SECRET) {
+      console.warn('JWT_SECRET non fourni : une clé stable a été générée et persistée dans data/.jwt_secret.');
+    }
+    return seed;
+  } catch (err) {
+    if (process.env.JWT_SECRET) return process.env.JWT_SECRET; // dernier recours : au moins démarrer
+    console.error('Impossible d\'initialiser le secret JWT :', err.message);
+    process.exit(1);
+  }
+})();
 
 // Clé de chiffrement des médias au repos (AES-256, 32 octets en hexadécimal).
 // Optionnelle : si absente, les fichiers sont stockés en clair (avec un avertissement).
