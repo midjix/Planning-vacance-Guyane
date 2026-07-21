@@ -7,6 +7,7 @@ const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const crypto = require('crypto');
 const archiver = require('archiver');
+const Jimp = require('jimp');
 const { Transform } = require('stream');
 
 const app = express();
@@ -537,6 +538,14 @@ async function encryptFileInPlace(filePath) {
   fs.renameSync(tmp, filePath);
 }
 
+// Génère une miniature JPEG légère (max 500px) à partir d'une image en clair.
+async function generateThumbnail(srcPath, thumbPath) {
+  const image = await Jimp.read(srcPath);
+  image.scaleToFit(500, 500);
+  const buf = await image.getBufferAsync(Jimp.MIME_JPEG);
+  fs.writeFileSync(thumbPath, buf);
+}
+
 // Lit l'en-tête d'un fichier et indique s'il est chiffré, avec son IV.
 function readEncInfo(filePath) {
   const fd = fs.openSync(filePath, 'r');
@@ -637,8 +646,14 @@ app.get('/api/activities/:id/photos', authMiddleware, (req, res) => {
 app.post('/api/activities/:id/photos', authMiddleware, upload.array('photos', 20), async (req, res) => {
   try {
     const dir = activityPhotoDir(req.params.id);
-    // Chiffre chaque fichier au repos (no-op si aucune clé configurée) et enregistre l'auteur.
+    // Pour chaque fichier : miniature (images), chiffrement au repos, et auteur.
     for (const f of (req.files || [])) {
+      if (f.mimetype.startsWith('image/') && f.size < 25 * 1024 * 1024) {
+        try {
+          await generateThumbnail(f.path, `${f.path}.thumb`);
+          await encryptFileInPlace(`${f.path}.thumb`);
+        } catch (err) { /* miniature best-effort : on garde l'image complète en secours */ }
+      }
       await encryptFileInPlace(f.path);
       recordUpload(dir, f.filename, req.user.username, f.originalname);
     }
@@ -655,8 +670,15 @@ app.get('/api/activities/:id/photos/:filename', mediaAuth, (req, res) => {
   const dir = activityPhotoDir(req.params.id);
   if (!dir) return res.status(400).json({ error: 'Identifiant invalide' });
   const filename = path.basename(req.params.filename);
-  const filePath = path.join(dir, filename);
+  let filePath = path.join(dir, filename);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Média non trouvé' });
+
+  // Miniature légère pour la galerie (si elle existe ; sinon on sert l'image complète).
+  let thumb = false;
+  if (req.query.thumb === '1' && fs.existsSync(`${filePath}.thumb`)) {
+    filePath = `${filePath}.thumb`;
+    thumb = true;
+  }
 
   const download = req.query.download === '1';
   const { encrypted, iv } = readEncInfo(filePath);
@@ -664,6 +686,7 @@ app.get('/api/activities/:id/photos/:filename', mediaAuth, (req, res) => {
   // Fichiers en clair (ou anciens médias) : Express gère le Range tout seul.
   if (!encrypted) {
     if (download) return res.download(filePath, filename);
+    if (thumb) res.type('.jpg');
     return res.sendFile(filePath);
   }
 
@@ -672,7 +695,7 @@ app.get('/api/activities/:id/photos/:filename', mediaAuth, (req, res) => {
   const stat = fs.statSync(filePath);
   const total = stat.size - ENC_PREFIX_LEN;
 
-  res.type(path.extname(filename));
+  res.type(thumb ? '.jpg' : path.extname(filename));
   res.setHeader('Accept-Ranges', 'bytes');
   if (download) res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
@@ -717,6 +740,7 @@ app.delete('/api/activities/:id/photos/:filename', authMiddleware, (req, res) =>
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Photo non trouvée' });
   try {
     fs.unlinkSync(filePath);
+    if (fs.existsSync(`${filePath}.thumb`)) fs.unlinkSync(`${filePath}.thumb`);
     const meta = readPhotoMeta(dir);
     if (meta[filename]) { delete meta[filename]; writePhotoMeta(dir, meta); }
     res.json({ success: true });

@@ -42,16 +42,16 @@ const MediaThumb = ({ url, name, by, mine, selected, onToggleSelect, onOpen, onS
       onClick={onOpen}
     >
       {video ? (
-        <>
-          <video src={`${url}#t=0.1`} preload="metadata" muted playsInline className="w-full h-full object-cover bg-black" />
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-11 h-11 rounded-full bg-black/50 flex items-center justify-center">
-              <Play className="w-5 h-5 text-white translate-x-0.5" />
-            </div>
+        // Placeholder léger : on ne charge PAS la vidéo dans la galerie (elle ne
+        // se lit qu'en plein écran). Chargement instantané.
+        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#0a1a0a] to-nature">
+          <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
+            <Play className="w-6 h-6 text-white translate-x-0.5" />
           </div>
-        </>
+        </div>
       ) : (
-        <img src={url} alt="Média de l'activité" className="w-full h-full object-cover" />
+        // Miniature réduite (le backend sert une version légère via ?thumb=1).
+        <img src={`${url}&thumb=1`} alt="Média de l'activité" className="w-full h-full object-cover" />
       )}
 
       {/* Case de sélection */}
