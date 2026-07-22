@@ -30,5 +30,8 @@ jobs:
 
       - name: Build and Push Frontend Image
         run: |
-          docker build -t ghcr.io/midjix/voyage-guyane-frontend:latest ./frontend
+          docker build \
+            --build-arg APP_VERSION=${GITHUB_SHA::7} \
+            --build-arg BUILD_DATE="$(date -u +'%Y-%m-%d %H:%M UTC')" \
+            -t ghcr.io/midjix/voyage-guyane-frontend:latest ./frontend
           docker push ghcr.io/midjix/voyage-guyane-frontend:latest

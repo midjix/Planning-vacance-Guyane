@@ -1,4 +1,9 @@
 FROM node:22-alpine as build
+# Version affichée sur le site (injectée au build par GitHub Actions)
+ARG APP_VERSION=dev
+ARG BUILD_DATE=
+ENV VITE_APP_VERSION=$APP_VERSION
+ENV VITE_BUILD_DATE=$BUILD_DATE
 WORKDIR /app
 COPY package*.json ./
 RUN npm install

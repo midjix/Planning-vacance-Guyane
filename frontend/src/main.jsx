@@ -9,6 +9,7 @@ import ActivityPhotos from './components/ActivityPhotos.jsx'
 import InviteRegister from './components/InviteRegister.jsx'
 import { UploadProvider } from './context/UploadManager.jsx'
 import UploadDock from './components/UploadDock.jsx'
+import VersionTag from './components/VersionTag.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -22,6 +23,7 @@ createRoot(document.getElementById('root')).render(
           <Route path="/invite/:token" element={<InviteRegister />} />
         </Routes>
         <UploadDock />
+        <VersionTag />
       </UploadProvider>
     </BrowserRouter>
   </StrictMode>,
