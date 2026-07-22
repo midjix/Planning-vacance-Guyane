@@ -13,8 +13,8 @@ export const useUploads = () => useContext(UploadContext);
 
 const SINGLE_MAX = 50 * 1024 * 1024;   // seuil au-delà duquel on découpe
 const CHUNK_SIZE = 8 * 1024 * 1024;    // taille d'un morceau (petit = plus résilient sur mobile)
-const CHUNK_RETRIES = 5;               // tentatives par morceau
-const ITEM_RETRIES = 4;                // reprises automatiques de tout le fichier (avec resume)
+const CHUNK_RETRIES = 8;               // tentatives par morceau (backoff exponentiel)
+const ITEM_RETRIES = 8;                // reprises automatiques de tout le fichier (avec resume)
 
 let counter = 0;
 
@@ -121,7 +121,8 @@ export const UploadProvider = ({ children }) => {
             if (err.canceled) throw err;
             attempt += 1;
             if (attempt > CHUNK_RETRIES) throw err;
-            await new Promise((r) => setTimeout(r, 1000 * attempt));
+            // Backoff exponentiel plafonné (~1s -> 20s) : tient sur une coupure prolongée.
+            await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** (attempt - 1), 20000)));
           }
         }
       }
@@ -147,8 +148,8 @@ export const UploadProvider = ({ children }) => {
           // coupure réseau est fréquente et transitoire -> on relance sans intervention.
           item.attempts = (item.attempts || 0) + 1;
           if (item.attempts <= ITEM_RETRIES) {
-            patch(item.id, { status: 'queued', error: null });
-            const delay = 3000 * item.attempts;
+            patch(item.id, { status: 'queued', error: null, retrying: item.attempts });
+            const delay = Math.min(3000 * item.attempts, 30000);
             setTimeout(() => {
               if (!item.canceled) { queueRef.current.push(item); if (pumpRef.current) pumpRef.current(); }
             }, delay);

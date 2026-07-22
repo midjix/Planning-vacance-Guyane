@@ -106,7 +106,7 @@ const UploadDock = () => {
                       {u.status === 'uploading' && u.eta != null && (
                         <span>{fmtEta(u.eta)} · {fmtSize(u.speed)}/s</span>
                       )}
-                      {u.status === 'queued' && <span>En attente…</span>}
+                      {u.status === 'queued' && <span className={u.retrying ? 'text-yellow-400' : ''}>{u.retrying ? `Reprise auto (${u.retrying})…` : 'En attente…'}</span>}
                       {u.status === 'done' && <span className="text-green-400">Terminé</span>}
                     </div>
                   </>
