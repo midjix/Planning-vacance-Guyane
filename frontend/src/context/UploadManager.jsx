@@ -14,6 +14,7 @@ export const useUploads = () => useContext(UploadContext);
 const SINGLE_MAX = 50 * 1024 * 1024;   // seuil au-delà duquel on découpe
 const CHUNK_SIZE = 8 * 1024 * 1024;    // taille d'un morceau (petit = plus résilient sur mobile)
 const CHUNK_RETRIES = 5;               // tentatives par morceau
+const ITEM_RETRIES = 4;                // reprises automatiques de tout le fichier (avec resume)
 
 let counter = 0;
 
@@ -46,6 +47,9 @@ export const UploadProvider = ({ children }) => {
   const currentRef = useRef(null);
   const runningRef = useRef(false);
   const itemsRef = useRef(new Map()); // id -> item (conserve le fichier pour un éventuel retry)
+  const pumpRef = useRef(null);       // référence stable vers pump (pour les reprises différées)
+  const uploadsRef = useRef(uploads); // dernier état connu (pour la reprise "retour de connexion")
+  uploadsRef.current = uploads;
 
   const patch = useCallback((id, changes) => {
     setUploads((prev) => prev.map((u) => (u.id === id ? { ...u, ...changes } : u)));
@@ -136,13 +140,28 @@ export const UploadProvider = ({ children }) => {
       try {
         await runItem(item);
       } catch (err) {
-        if (err.canceled || item.canceled) patch(item.id, { status: 'canceled' });
-        else patch(item.id, { status: 'error', error: err.message });
+        if (err.canceled || item.canceled) {
+          patch(item.id, { status: 'canceled' });
+        } else {
+          // Reprise automatique de tout le fichier (avec resume) : sur mobile, une
+          // coupure réseau est fréquente et transitoire -> on relance sans intervention.
+          item.attempts = (item.attempts || 0) + 1;
+          if (item.attempts <= ITEM_RETRIES) {
+            patch(item.id, { status: 'queued', error: null });
+            const delay = 3000 * item.attempts;
+            setTimeout(() => {
+              if (!item.canceled) { queueRef.current.push(item); if (pumpRef.current) pumpRef.current(); }
+            }, delay);
+          } else {
+            patch(item.id, { status: 'error', error: err.message });
+          }
+        }
       }
       currentRef.current = null;
     }
     runningRef.current = false;
   }, [runItem, patch]);
+  pumpRef.current = pump;
 
   const enqueue = useCallback((activityId, files) => {
     const items = Array.from(files).map((file) => ({ id: ++counter, activityId, file, canceled: false, xhr: null }));
@@ -160,10 +179,20 @@ export const UploadProvider = ({ children }) => {
     const item = itemsRef.current.get(id);
     if (!item) return;
     item.canceled = false;
+    item.attempts = 0;
     patch(id, { status: 'queued', error: null, loaded: 0 });
     queueRef.current.push(item);
     pump();
   }, [patch, pump]);
+
+  // Reprise automatique des transferts échoués quand la connexion revient.
+  useEffect(() => {
+    const onOnline = () => {
+      uploadsRef.current.filter((u) => u.status === 'error').forEach((u) => retry(u.id));
+    };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [retry]);
 
   const cancel = useCallback((id) => {
     const cur = currentRef.current;
