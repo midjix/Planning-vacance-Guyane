@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const archiver = require('archiver');
 const Jimp = require('jimp');
 const { Transform } = require('stream');
+const { spawn } = require('child_process');
 
 const app = express();
 const PORT = process.env.PORT || 8081;
@@ -546,6 +547,80 @@ async function generateThumbnail(srcPath, thumbPath) {
   fs.writeFileSync(thumbPath, buf);
 }
 
+// ---- Transcodage vidéo (version allégée pour une lecture fluide) ----
+const VIDEO_EXT = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
+const isVideoName = (name) => VIDEO_EXT.includes(path.extname(name).toLowerCase());
+
+// Déchiffre un fichier vers une destination en clair (ou copie s'il est déjà en clair).
+function decryptToFile(srcPath, destPath) {
+  return new Promise((resolve, reject) => {
+    const { encrypted, iv } = readEncInfo(srcPath);
+    const out = fs.createWriteStream(destPath);
+    out.on('error', reject);
+    out.on('finish', resolve);
+    if (!encrypted) { fs.createReadStream(srcPath).pipe(out); return; }
+    const decipher = crypto.createDecipheriv('aes-256-ctr', MEDIA_KEY, iv);
+    fs.createReadStream(srcPath, { start: ENC_PREFIX_LEN }).pipe(decipher).pipe(out);
+  });
+}
+
+// Lance ffmpeg : mise à l'échelle max 854px de large (~480p), H.264 + AAC, faststart.
+function runFfmpeg(input, output) {
+  return new Promise((resolve, reject) => {
+    const args = [
+      '-y', '-i', input,
+      '-vf', "scale='min(854,iw)':-2",
+      '-c:v', 'libx264', '-crf', '28', '-preset', 'veryfast',
+      '-c:a', 'aac', '-b:a', '96k',
+      '-movflags', '+faststart',
+      output,
+    ];
+    const proc = spawn('ffmpeg', args);
+    proc.on('error', reject); // ffmpeg absent
+    proc.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg code ${code}`))));
+  });
+}
+
+function setLowStatus(dir, filename, status) {
+  const meta = readPhotoMeta(dir);
+  if (!meta[filename]) meta[filename] = {};
+  meta[filename].lowStatus = status;
+  writePhotoMeta(dir, meta);
+}
+
+// File de transcodage : un seul ffmpeg à la fois (on ménage le CPU du NAS).
+const transcodeQueue = [];
+let transcoding = false;
+function enqueueTranscode(dir, filename) {
+  transcodeQueue.push({ dir, filename });
+  processTranscodeQueue();
+}
+async function processTranscodeQueue() {
+  if (transcoding) return;
+  transcoding = true;
+  while (transcodeQueue.length > 0) {
+    const { dir, filename } = transcodeQueue.shift();
+    const originalPath = path.join(dir, filename);
+    const lowPath = `${originalPath}.low`;
+    const tmpIn = `${originalPath}.tin`;
+    const tmpOut = `${originalPath}.tout.mp4`;
+    try {
+      if (!fs.existsSync(originalPath)) continue;
+      setLowStatus(dir, filename, 'pending');
+      await decryptToFile(originalPath, tmpIn);
+      await runFfmpeg(tmpIn, tmpOut);
+      await encryptFileInPlace(tmpOut);
+      fs.renameSync(tmpOut, lowPath);
+      setLowStatus(dir, filename, 'ready');
+    } catch (err) {
+      setLowStatus(dir, filename, 'failed');
+    } finally {
+      [tmpIn, tmpOut].forEach((p) => { try { if (fs.existsSync(p)) fs.rmSync(p, { force: true }); } catch (e) { /* ignore */ } });
+    }
+  }
+  transcoding = false;
+}
+
 // Lit l'en-tête d'un fichier et indique s'il est chiffré, avec son IV.
 function readEncInfo(filePath) {
   const fd = fs.openSync(filePath, 'r');
@@ -633,7 +708,7 @@ app.get('/api/activities/:id/photos', authMiddleware, (req, res) => {
       .map(name => {
         const stat = fs.statSync(path.join(dir, name));
         const m = meta[name] || {};
-        return { name, size: stat.size, uploadedAt: stat.mtime.getTime(), by: m.by || null, originalName: m.originalName || null };
+        return { name, size: stat.size, uploadedAt: stat.mtime.getTime(), by: m.by || null, originalName: m.originalName || null, lowStatus: m.lowStatus || null };
       })
       .sort((a, b) => b.uploadedAt - a.uploadedAt);
     res.json(files);
@@ -656,6 +731,7 @@ app.post('/api/activities/:id/photos', authMiddleware, upload.array('photos', 20
       }
       await encryptFileInPlace(f.path);
       recordUpload(dir, f.filename, req.user.username, f.originalname);
+      if (f.mimetype.startsWith('video/')) enqueueTranscode(dir, f.filename);
     }
     res.status(201).json({ success: true, uploaded: (req.files || []).map(f => f.filename) });
   } catch (err) {
@@ -678,6 +754,9 @@ app.get('/api/activities/:id/photos/:filename', mediaAuth, (req, res) => {
   if (req.query.thumb === '1' && fs.existsSync(`${filePath}.thumb`)) {
     filePath = `${filePath}.thumb`;
     thumb = true;
+  } else if (isVideoName(filename) && req.query.hd !== '1' && fs.existsSync(`${filePath}.low`)) {
+    // Vidéos : on sert la version allégée par défaut (lecture fluide), HD sur demande.
+    filePath = `${filePath}.low`;
   }
 
   const download = req.query.download === '1';
@@ -741,6 +820,7 @@ app.delete('/api/activities/:id/photos/:filename', authMiddleware, (req, res) =>
   try {
     fs.unlinkSync(filePath);
     if (fs.existsSync(`${filePath}.thumb`)) fs.unlinkSync(`${filePath}.thumb`);
+    if (fs.existsSync(`${filePath}.low`)) fs.unlinkSync(`${filePath}.low`);
     const meta = readPhotoMeta(dir);
     if (meta[filename]) { delete meta[filename]; writePhotoMeta(dir, meta); }
     res.json({ success: true });
@@ -916,6 +996,7 @@ app.post('/api/activities/:id/uploads/:uploadId/complete', authMiddleware, async
     await assembleChunks(sessionDir, meta.totalChunks, finalPath);
     fs.rmSync(sessionDir, { recursive: true, force: true });
     recordUpload(dir, finalName, meta.uploadedBy || req.user.username, meta.filename);
+    if (String(meta.mimetype).startsWith('video/') || isVideoName(finalName)) enqueueTranscode(dir, finalName);
     const stat = fs.statSync(finalPath);
     res.status(201).json({ name: finalName, size: stat.size });
   } catch (err) {

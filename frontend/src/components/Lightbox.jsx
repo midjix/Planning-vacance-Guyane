@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 
 const VIDEO_EXT = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
@@ -7,6 +7,9 @@ const isVideo = (name) => VIDEO_EXT.includes(name.slice(name.lastIndexOf('.')).t
 // Visionneuse plein écran : image en grand, vidéo streamée (Range) avec lecteur.
 const Lightbox = ({ items, index, streamUrl, onClose, onIndex, onSave }) => {
   const item = items[index];
+  const [hd, setHd] = useState(false); // par défaut : version allégée (lecture fluide)
+
+  useEffect(() => { setHd(false); }, [index]); // repart en qualité fluide à chaque média
 
   useEffect(() => {
     const onKey = (e) => {
@@ -21,6 +24,8 @@ const Lightbox = ({ items, index, streamUrl, onClose, onIndex, onSave }) => {
   if (!item) return null;
   const url = streamUrl(item.name);
   const video = isVideo(item.name);
+  const videoSrc = hd ? `${url}&hd=1` : url;
+  const lowReady = item.lowStatus === 'ready';
 
   return (
     <div className="fixed inset-0 z-[300] bg-black/90 backdrop-blur-sm flex items-center justify-center" onClick={onClose}>
@@ -28,6 +33,15 @@ const Lightbox = ({ items, index, streamUrl, onClose, onIndex, onSave }) => {
       <div className="absolute top-0 inset-x-0 flex items-center justify-between p-4 z-10">
         <span className="text-white/70 text-sm">{index + 1} / {items.length}</span>
         <div className="flex items-center gap-2">
+          {video && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setHd((h) => !h); }}
+              title={hd ? 'Repasser en qualité fluide' : 'Passer en HD (bonne connexion)'}
+              className={`px-2.5 py-2 rounded-lg text-xs font-bold transition-colors ${hd ? 'bg-green-600 text-white' : 'bg-white/10 text-white hover:bg-white/20'}`}
+            >
+              {hd ? 'HD' : (lowReady ? 'SD' : 'HD')}
+            </button>
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); if (onSave) onSave(item.name); }}
             title="Enregistrer / télécharger"
@@ -56,8 +70,8 @@ const Lightbox = ({ items, index, streamUrl, onClose, onIndex, onSave }) => {
       <div className="max-w-[92vw] max-h-[85vh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
         {video ? (
           <video
-            key={item.name}
-            src={url}
+            key={`${item.name}-${hd}`}
+            src={videoSrc}
             controls
             autoPlay
             playsInline
