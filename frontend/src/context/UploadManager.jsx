@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react';
 import { getToken } from '../utils/auth';
+import { track, flush } from '../utils/telemetry';
 
 // Gestionnaire d'upload global : vit à la racine de l'app pour que les transferts
 // continuent pendant la navigation. Progression + temps restant par fichier.
@@ -32,7 +33,7 @@ function xhrRequest({ method, url, body, headers, onProgress, item }) {
       } else {
         let msg = `Échec (${xhr.status})`;
         try { msg = JSON.parse(xhr.responseText).error || msg; } catch (e) { /* ignore */ }
-        reject(new Error(msg));
+        reject(Object.assign(new Error(msg), { status: xhr.status }));
       }
     };
     xhr.onerror = () => reject(new Error('Erreur réseau'));
@@ -151,29 +152,42 @@ export const UploadProvider = ({ children }) => {
       const item = queueRef.current.shift();
       currentRef.current = item;
       if (item.canceled) { patch(item.id, { status: 'canceled' }); currentRef.current = null; continue; }
+      const startedAt = Date.now();
+      const meta = {
+        kind: item.file && item.file.type.startsWith('video/') ? 'video' : 'photo',
+        size: item.file ? item.file.size : undefined,
+        mode: item.file && item.file.size > SINGLE_MAX ? 'chunked' : 'single',
+        activityId: item.activityId,
+      };
       try {
         await runItem(item);
+        const durationMs = Date.now() - startedAt;
+        track('upload_ok', { ...meta, durationMs, speed: meta.size ? Math.round(meta.size / Math.max(durationMs / 1000, 0.1)) : undefined });
         // Transfert réussi : on libère la référence au fichier (mémoire mobile).
         item.file = null;
         itemsRef.current.delete(item.id);
       } catch (err) {
         if (err.canceled || item.canceled) {
           patch(item.id, { status: 'canceled' });
+          track('upload_canceled', meta);
         } else if (err.unreadable) {
           // Inutile de réessayer : le fichier n'est plus lisible, il faut le resélectionner.
           patch(item.id, { status: 'error', error: err.message });
+          track('upload_unreadable', { ...meta, detail: err.message, attempt: item.attempts || 0 });
         } else {
           // Reprise automatique de tout le fichier (avec resume) : sur mobile, une
           // coupure réseau est fréquente et transitoire -> on relance sans intervention.
           item.attempts = (item.attempts || 0) + 1;
           if (item.attempts <= ITEM_RETRIES) {
             patch(item.id, { status: 'queued', error: null, retrying: item.attempts });
+            track('upload_retry', { ...meta, attempt: item.attempts, detail: err.message });
             const delay = Math.min(3000 * item.attempts, 30000);
             setTimeout(() => {
               if (!item.canceled) { queueRef.current.push(item); if (pumpRef.current) pumpRef.current(); }
             }, delay);
           } else {
             patch(item.id, { status: 'error', error: err.message });
+            track('upload_ko', { ...meta, detail: err.message, status: err.status, attempt: item.attempts });
           }
         }
       }
@@ -244,7 +258,15 @@ export const UploadProvider = ({ children }) => {
   const hasActive = uploads.some((u) => u.status === 'uploading' || u.status === 'queued');
   useEffect(() => {
     if (!hasActive) return undefined;
-    const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
+    const handler = (e) => {
+      // Trace le rechargement/fermeture en plein transfert (cause fréquente d'échec
+      // invisible). sendBeacon est le seul envoi fiable pendant le déchargement.
+      const active = uploadsRef.current.filter((u) => u.status === 'uploading' || u.status === 'queued');
+      track('reload_during_upload', { count: active.length, detail: active.map((u) => u.name).join(', ').slice(0, 200) });
+      flush(true);
+      e.preventDefault();
+      e.returnValue = '';
+    };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [hasActive]);

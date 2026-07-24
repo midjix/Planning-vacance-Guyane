@@ -10,6 +10,10 @@ import InviteRegister from './components/InviteRegister.jsx'
 import { UploadProvider } from './context/UploadManager.jsx'
 import UploadDock from './components/UploadDock.jsx'
 import VersionTag from './components/VersionTag.jsx'
+import { installGlobalErrorTracking } from './utils/telemetry.js'
+
+// Capture les erreurs JS silencieuses pour le tableau de bord de diagnostic.
+installGlobalErrorTracking()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

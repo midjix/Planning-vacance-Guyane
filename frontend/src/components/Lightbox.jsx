@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { track } from '../utils/telemetry';
 
 const VIDEO_EXT = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
 const isVideo = (name) => VIDEO_EXT.includes(name.slice(name.lastIndexOf('.')).toLowerCase());
@@ -35,7 +36,7 @@ const Lightbox = ({ items, index, streamUrl, onClose, onIndex, onSave }) => {
         <div className="flex items-center gap-2">
           {video && (
             <button
-              onClick={(e) => { e.stopPropagation(); setHd((h) => !h); }}
+              onClick={(e) => { e.stopPropagation(); track('video_quality_toggle', { kind: 'video', detail: !hd ? 'vers HD' : 'vers allégée' }); setHd((h) => !h); }}
               title={hd ? 'Repasser en qualité fluide' : 'Passer en HD (bonne connexion)'}
               className={`px-2.5 py-2 rounded-lg text-xs font-bold transition-colors ${hd ? 'bg-green-600 text-white' : 'bg-white/10 text-white hover:bg-white/20'}`}
             >
@@ -76,9 +77,19 @@ const Lightbox = ({ items, index, streamUrl, onClose, onIndex, onSave }) => {
             autoPlay
             playsInline
             className="max-w-[92vw] max-h-[85vh] rounded-lg bg-black"
+            onPlaying={() => track('preview_ok', { kind: 'video', size: item.size, detail: hd ? 'HD' : 'allégée' })}
+            onError={() => track('preview_ko', { kind: 'video', size: item.size, detail: `lecture impossible (${hd ? 'HD' : 'allégée'})` })}
+            onWaiting={() => track('video_stall', { kind: 'video', size: item.size, detail: hd ? 'HD' : 'allégée' })}
           />
         ) : (
-          <img key={item.name} src={url} alt="" className="max-w-[92vw] max-h-[85vh] object-contain rounded-lg" />
+          <img
+            key={item.name}
+            src={url}
+            alt=""
+            className="max-w-[92vw] max-h-[85vh] object-contain rounded-lg"
+            onLoad={() => track('preview_ok', { kind: 'photo', size: item.size })}
+            onError={() => track('preview_ko', { kind: 'photo', size: item.size, detail: 'image non chargée' })}
+          />
         )}
       </div>
 

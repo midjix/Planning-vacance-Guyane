@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save, Trash2, Plus, LogOut, ChevronDown, ChevronUp, Home, MapPin, Users, List, BarChart, User } from 'lucide-react';
+import { Save, Trash2, Plus, LogOut, ChevronDown, ChevronUp, Home, MapPin, Users, List, BarChart, User, Activity } from 'lucide-react';
 import AdminUsers from './AdminUsers';
 import AdminStats from './AdminStats';
 import AdminProfile from './AdminProfile';
+import AdminDiagnostics from './AdminDiagnostics';
 import LocationPicker from './LocationPicker';
 import { formatDate } from '../utils/formatDate';
 import { getToken, getRole, clearAuth } from '../utils/auth';
@@ -301,6 +302,17 @@ const AdminPanel = () => {
                 <BarChart className="w-4 h-4" />
                 Statistiques
               </button>
+              <button
+                onClick={() => setActiveTab('diagnostics')}
+                className={`flex items-center gap-2 px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
+                  activeTab === 'diagnostics'
+                    ? 'border-green-500 text-green-400 bg-green-500/10'
+                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                }`}
+              >
+                <Activity className="w-4 h-4" />
+                Diagnostic
+              </button>
             </>
           )}
         </div>
@@ -551,6 +563,10 @@ const AdminPanel = () => {
 
         {activeTab === 'stats' && (
           <AdminStats token={token} showMessage={showMessage} handleLogout={handleLogout} />
+        )}
+
+        {activeTab === 'diagnostics' && (
+          <AdminDiagnostics token={token} showMessage={showMessage} handleLogout={handleLogout} />
         )}
       </main>
     </div>

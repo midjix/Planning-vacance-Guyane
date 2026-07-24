@@ -4,6 +4,7 @@ import { ArrowLeft, Upload, Download, Trash2, Camera, Play, CheckCircle2, Circle
 import { formatDate } from '../utils/formatDate';
 import { getToken, getUsername } from '../utils/auth';
 import { useUploads } from '../context/UploadManager';
+import { track } from '../utils/telemetry';
 import Lightbox from './Lightbox';
 
 const authHeaders = (token) => ({ Authorization: `Bearer ${token}` });
@@ -51,7 +52,12 @@ const MediaThumb = ({ url, name, by, mine, selected, onToggleSelect, onOpen, onS
         </div>
       ) : (
         // Miniature réduite (le backend sert une version légère via ?thumb=1).
-        <img src={`${url}&thumb=1`} alt="Média de l'activité" className="w-full h-full object-cover" />
+        <img
+          src={`${url}&thumb=1`}
+          alt="Média de l'activité"
+          className="w-full h-full object-cover"
+          onError={() => track('thumb_ko', { kind: 'photo', detail: name })}
+        />
       )}
 
       {/* Case de sélection */}
@@ -153,6 +159,19 @@ const ActivityPhotos = () => {
     if (doneCount > prevDone.current) loadPhotos();
     prevDone.current = doneCount;
   }, [doneCount, loadPhotos]);
+
+  // Trace l'affichage de la galerie : sert de dénominateur au taux de réussite
+  // des miniatures dans le tableau de bord.
+  const galleryTracked = useRef(false);
+  useEffect(() => {
+    if (loading || galleryTracked.current) return;
+    galleryTracked.current = true;
+    track('gallery_view', {
+      total: photos.length,
+      count: photos.filter((p) => isVideo(p.name)).length,
+      activityId: id,
+    });
+  }, [loading, photos, id]);
 
   const markDownloaded = useCallback((names) => {
     setDownloaded((prev) => {
@@ -367,7 +386,10 @@ const ActivityPhotos = () => {
                 mine={media.by === currentUser}
                 selected={selected.has(media.name)}
                 onToggleSelect={() => toggleSelect(media.name)}
-                onOpen={() => setLightboxIndex(photos.findIndex((p) => p.name === media.name))}
+                onOpen={() => {
+                  track('preview_open', { kind: isVideo(media.name) ? 'video' : 'photo', size: media.size, activityId: id });
+                  setLightboxIndex(photos.findIndex((p) => p.name === media.name));
+                }}
                 onSave={() => saveMedia([media.name])}
                 onDelete={handleDelete}
               />

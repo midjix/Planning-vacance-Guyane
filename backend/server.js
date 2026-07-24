@@ -62,6 +62,7 @@ const MEDIA_KEY = (() => {
 const ITINERARY_FILE = path.join(__dirname, 'data', 'itinerary.json');
 const USERS_FILE = path.join(__dirname, 'data', 'users.json');
 const ANALYTICS_FILE = path.join(__dirname, 'data', 'analytics.json');
+const EVENTS_FILE = path.join(__dirname, 'data', 'events.json');
 // Répertoire des photos liées aux activités (persisté dans le volume backend-data)
 const PHOTOS_DIR = path.join(__dirname, 'data', 'photos');
 
@@ -109,6 +110,47 @@ function readAnalytics() {
 
 function writeAnalytics(data) {
   fs.writeFileSync(ANALYTICS_FILE, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+// ---- Journal de diagnostic (télémétrie envoyée par le navigateur) ----
+const MAX_EVENTS = 5000; // journal glissant
+
+function readEvents() {
+  try {
+    if (fs.existsSync(EVENTS_FILE)) return JSON.parse(fs.readFileSync(EVENTS_FILE, 'utf-8'));
+  } catch (err) { /* journal corrompu -> on repart de zéro */ }
+  return [];
+}
+
+function writeEvents(list) {
+  try { fs.writeFileSync(EVENTS_FILE, JSON.stringify(list), 'utf-8'); } catch (err) { /* best effort */ }
+}
+
+// Ne conserve que des champs connus, tronqués : le journal ne doit jamais grossir sans limite.
+const str = (v, max = 300) => (typeof v === 'string' ? v.slice(0, max) : undefined);
+const num = (v) => (Number.isFinite(v) ? v : undefined);
+function sanitizeEvent(e) {
+  if (!e || typeof e !== 'object' || !e.type) return null;
+  return {
+    at: Date.now(),
+    type: str(e.type, 40),
+    user: str(e.user, 60),
+    kind: str(e.kind, 20),          // photo | video
+    mode: str(e.mode, 20),          // single | chunked
+    size: num(e.size),
+    durationMs: num(e.durationMs),
+    speed: num(e.speed),            // octets/s
+    status: num(e.status),          // code HTTP éventuel
+    attempt: num(e.attempt),
+    count: num(e.count),
+    total: num(e.total),
+    detail: str(e.detail, 300),
+    path: str(e.path, 120),
+    device: str(e.device, 20),
+    browser: str(e.browser, 20),
+    os: str(e.os, 20),
+    activityId: str(String(e.activityId ?? ''), 12) || undefined,
+  };
 }
 
 app.use(cors());
@@ -190,6 +232,39 @@ app.post('/api/track', (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Erreur lors de l\'enregistrement de la visite' });
   }
+});
+
+// Réception des événements de diagnostic (sans auth : on veut aussi capter les
+// erreurs des visiteurs non connectés ; les données sont filtrées et plafonnées).
+app.post('/api/events', (req, res) => {
+  try {
+    const incoming = Array.isArray(req.body && req.body.events) ? req.body.events.slice(0, 50) : [];
+    const clean = incoming.map(sanitizeEvent).filter(Boolean);
+    if (clean.length > 0) {
+      const all = readEvents().concat(clean);
+      writeEvents(all.slice(-MAX_EVENTS));
+    }
+    res.status(204).end();
+  } catch (err) {
+    res.status(204).end(); // la télémétrie ne doit jamais gêner l'utilisateur
+  }
+});
+
+// Consultation du journal de diagnostic (admin)
+app.get('/api/admin/events', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 1000, MAX_EVENTS);
+    const all = readEvents();
+    res.json(all.slice(-limit).reverse()); // plus récents d'abord
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur lecture du journal' });
+  }
+});
+
+// Vider le journal de diagnostic (admin)
+app.delete('/api/admin/events', authMiddleware, adminOnly, (req, res) => {
+  writeEvents([]);
+  res.json({ success: true });
 });
 
 // ==================== ROUTES ADMIN ====================
