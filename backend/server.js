@@ -261,6 +261,31 @@ app.get('/api/admin/events', authMiddleware, adminOnly, (req, res) => {
   }
 });
 
+// Rattrapage : génère les miniatures/versions allégées manquantes pour les
+// vidéos déjà présentes (les médias uploadés avant cette fonctionnalité).
+app.post('/api/admin/media/backfill', authMiddleware, adminOnly, (req, res) => {
+  let queued = 0;
+  try {
+    if (fs.existsSync(PHOTOS_DIR)) {
+      for (const activityId of fs.readdirSync(PHOTOS_DIR)) {
+        const dir = path.join(PHOTOS_DIR, activityId);
+        if (!fs.statSync(dir).isDirectory()) continue;
+        for (const name of fs.readdirSync(dir)) {
+          if (!isVideoName(name)) continue;
+          const p = path.join(dir, name);
+          if (!fs.existsSync(`${p}.thumb`) || !fs.existsSync(`${p}.low`)) {
+            enqueueTranscode(dir, name);
+            queued += 1;
+          }
+        }
+      }
+    }
+    res.json({ queued });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur lors du rattrapage' });
+  }
+});
+
 // Vider le journal de diagnostic (admin)
 app.delete('/api/admin/events', authMiddleware, adminOnly, (req, res) => {
   writeEvents([]);
@@ -639,6 +664,21 @@ function decryptToFile(srcPath, destPath) {
   });
 }
 
+// Extrait une image de la vidéo pour servir de miniature (poster).
+// On tente à 1s ; si la vidéo est plus courte, on retombe sur la toute première image.
+function runFfmpegPoster(input, output) {
+  const attempt = (seek) => new Promise((resolve, reject) => {
+    const proc = spawn('ffmpeg', [
+      '-y', '-ss', String(seek), '-i', input,
+      '-frames:v', '1', '-vf', "scale='min(500,iw)':-2", '-q:v', '4',
+      output,
+    ]);
+    proc.on('error', reject);
+    proc.on('close', (code) => (code === 0 && fs.existsSync(output) ? resolve() : reject(new Error(`ffmpeg poster code ${code}`))));
+  });
+  return attempt(1).catch(() => attempt(0));
+}
+
 // Lance ffmpeg : mise à l'échelle max 854px de large (~480p), H.264 + AAC, faststart.
 function runFfmpeg(input, output) {
   return new Promise((resolve, reject) => {
@@ -679,18 +719,33 @@ async function processTranscodeQueue() {
     const lowPath = `${originalPath}.low`;
     const tmpIn = `${originalPath}.tin`;
     const tmpOut = `${originalPath}.tout.mp4`;
+    const tmpPoster = `${originalPath}.tposter.jpg`;
     try {
       if (!fs.existsSync(originalPath)) continue;
       setLowStatus(dir, filename, 'pending');
       await decryptToFile(originalPath, tmpIn);
-      await runFfmpeg(tmpIn, tmpOut);
-      await encryptFileInPlace(tmpOut);
-      fs.renameSync(tmpOut, lowPath);
+
+      // 1) Miniature (rapide) : on la produit d'abord pour que la galerie
+      //    s'illustre sans attendre la fin du transcodage.
+      if (!fs.existsSync(`${originalPath}.thumb`)) {
+        try {
+          await runFfmpegPoster(tmpIn, tmpPoster);
+          await encryptFileInPlace(tmpPoster);
+          fs.renameSync(tmpPoster, `${originalPath}.thumb`);
+        } catch (err) { /* miniature best-effort */ }
+      }
+
+      // 2) Version allégée (lente)
+      if (!fs.existsSync(lowPath)) {
+        await runFfmpeg(tmpIn, tmpOut);
+        await encryptFileInPlace(tmpOut);
+        fs.renameSync(tmpOut, lowPath);
+      }
       setLowStatus(dir, filename, 'ready');
     } catch (err) {
       setLowStatus(dir, filename, 'failed');
     } finally {
-      [tmpIn, tmpOut].forEach((p) => { try { if (fs.existsSync(p)) fs.rmSync(p, { force: true }); } catch (e) { /* ignore */ } });
+      [tmpIn, tmpOut, tmpPoster].forEach((p) => { try { if (fs.existsSync(p)) fs.rmSync(p, { force: true }); } catch (e) { /* ignore */ } });
     }
   }
   transcoding = false;
@@ -824,11 +879,18 @@ app.get('/api/activities/:id/photos/:filename', mediaAuth, (req, res) => {
   let filePath = path.join(dir, filename);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Média non trouvé' });
 
-  // Miniature légère pour la galerie (si elle existe ; sinon on sert l'image complète).
+  // Miniature légère pour la galerie.
   let thumb = false;
-  if (req.query.thumb === '1' && fs.existsSync(`${filePath}.thumb`)) {
-    filePath = `${filePath}.thumb`;
-    thumb = true;
+  if (req.query.thumb === '1') {
+    if (fs.existsSync(`${filePath}.thumb`)) {
+      filePath = `${filePath}.thumb`;
+      thumb = true;
+    } else if (isVideoName(filename)) {
+      // Pas de miniature pour cette vidéo : on ne renvoie surtout pas la vidéo
+      // entière à une balise <img>, le client affichera un placeholder.
+      return res.status(404).json({ error: 'Miniature indisponible' });
+    }
+    // Image sans miniature : on sert l'image complète (repli).
   } else if (isVideoName(filename) && req.query.hd !== '1' && fs.existsSync(`${filePath}.low`)) {
     // Vidéos : on sert la version allégée par défaut (lecture fluide), HD sur demande.
     filePath = `${filePath}.low`;

@@ -35,21 +35,35 @@ const saveDownloaded = (id, set) => {
   try { localStorage.setItem(dlKey(id), JSON.stringify([...set])); } catch { /* ignore */ }
 };
 
-const MediaThumb = ({ url, name, by, mine, selected, onToggleSelect, onOpen, onSave, onDelete }) => {
+const MediaThumb = ({ url, name, by, mine, selected, onToggleSelect, onOpen, onSave, onDelete, onPosterMissing }) => {
   const video = isVideo(name);
+  const [posterMissing, setPosterMissing] = useState(false);
   return (
     <div
       className={`group relative rounded-lg overflow-hidden border bg-nature-dark aspect-square cursor-pointer transition-all ${selected ? 'border-green-500 ring-2 ring-green-500' : 'border-nature-light'}`}
       onClick={onOpen}
     >
       {video ? (
-        // Placeholder léger : on ne charge PAS la vidéo dans la galerie (elle ne
-        // se lit qu'en plein écran). Chargement instantané.
-        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#0a1a0a] to-nature">
-          <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
-            <Play className="w-6 h-6 text-white translate-x-0.5" />
+        // Miniature vidéo = image extraite par le serveur (légère). Si elle n'existe
+        // pas encore (ancienne vidéo), on retombe sur un placeholder.
+        <>
+          {!posterMissing && (
+            <img
+              src={`${url}&thumb=1`}
+              alt="Miniature de la vidéo"
+              className="w-full h-full object-cover bg-black"
+              onError={() => { setPosterMissing(true); if (onPosterMissing) onPosterMissing(); }}
+            />
+          )}
+          {posterMissing && (
+            <div className="w-full h-full bg-gradient-to-br from-[#0a1a0a] to-nature" />
+          )}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
+              <Play className="w-6 h-6 text-white translate-x-0.5" />
+            </div>
           </div>
-        </div>
+        </>
       ) : (
         // Miniature réduite (le backend sert une version légère via ?thumb=1).
         <img
@@ -172,6 +186,19 @@ const ActivityPhotos = () => {
       activityId: id,
     });
   }, [loading, photos, id]);
+
+  // Miniatures vidéo absentes : on agrège pour n'envoyer qu'un événement par
+  // galerie (sinon une galerie de 50 vidéos noierait le journal).
+  const posterMiss = useRef(0);
+  const posterTimer = useRef(null);
+  const reportPosterMissing = useCallback(() => {
+    posterMiss.current += 1;
+    if (posterTimer.current) clearTimeout(posterTimer.current);
+    posterTimer.current = setTimeout(() => {
+      track('video_poster_missing', { count: posterMiss.current, activityId: id });
+      posterMiss.current = 0;
+    }, 1500);
+  }, [id]);
 
   const markDownloaded = useCallback((names) => {
     setDownloaded((prev) => {
@@ -392,6 +419,7 @@ const ActivityPhotos = () => {
                 }}
                 onSave={() => saveMedia([media.name])}
                 onDelete={handleDelete}
+                onPosterMissing={reportPosterMissing}
               />
             ))}
           </div>

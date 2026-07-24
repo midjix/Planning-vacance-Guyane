@@ -34,9 +34,10 @@ const TYPE_LABELS = {
   preview_ko: 'Aperçu en échec',
   video_stall: 'Vidéo saccadée',
   video_quality_toggle: 'Bascule qualité vidéo',
+  video_poster_missing: 'Miniature vidéo absente',
   js_error: 'Erreur JavaScript',
 };
-const isFailure = (t) => ['upload_ko', 'upload_unreadable', 'thumb_ko', 'preview_ko', 'js_error', 'reload_during_upload'].includes(t);
+const isFailure = (t) => ['upload_ko', 'upload_unreadable', 'thumb_ko', 'preview_ko', 'js_error', 'reload_during_upload', 'video_poster_missing'].includes(t);
 
 const Card = ({ icon: Icon, label, value, sub, tone = 'green' }) => (
   <div className="bg-nature-dark border border-nature-light rounded-xl p-4">
@@ -71,6 +72,20 @@ const AdminDiagnostics = ({ token, showMessage, handleLogout }) => {
   }, [token, showMessage, handleLogout]);
 
   useEffect(() => { load(); }, [load]);
+
+  const backfill = async () => {
+    if (!confirm('Générer les miniatures et versions allégées manquantes ?\n\nLe NAS va travailler quelques minutes selon le nombre de vidéos.')) return;
+    try {
+      const res = await fetch('/api/admin/media/backfill', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (!res.ok) throw new Error();
+      showMessage(data.queued > 0
+        ? `${data.queued} vidéo(s) en cours de traitement — les miniatures apparaîtront au fur et à mesure`
+        : 'Tout est déjà à jour');
+    } catch (err) {
+      showMessage('Erreur lors du rattrapage', 'error');
+    }
+  };
 
   const clearLog = async () => {
     if (!confirm('Vider tout le journal de diagnostic ?')) return;
@@ -167,6 +182,9 @@ const AdminDiagnostics = ({ token, showMessage, handleLogout }) => {
         <div className="ml-auto flex gap-2">
           <button onClick={load} className="flex items-center gap-1.5 px-3 py-1.5 bg-nature border border-nature-light rounded-lg text-sm hover:bg-nature-light transition-colors">
             <RefreshCw className="w-4 h-4" /> Actualiser
+          </button>
+          <button onClick={backfill} title="Générer les miniatures vidéo et versions allégées manquantes" className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-900/30 border border-blue-500/50 text-blue-300 rounded-lg text-sm hover:bg-blue-900/50 transition-colors">
+            <Video className="w-4 h-4" /> Miniatures vidéo
           </button>
           <button onClick={clearLog} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-900/30 border border-red-500/50 text-red-400 rounded-lg text-sm hover:bg-red-900/50 transition-colors">
             <Trash2 className="w-4 h-4" /> Vider
