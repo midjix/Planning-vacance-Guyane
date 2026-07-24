@@ -57,6 +57,19 @@ export const UploadProvider = ({ children }) => {
 
   const runItem = useCallback(async (item) => {
     const { id, activityId, file } = item;
+
+    // Sur mobile, après de gros transferts, le navigateur peut perdre l'accès au
+    // fichier sélectionné (référence content:// libérée). On le détecte tout de
+    // suite : sinon on réessaie en boucle un fichier devenu illisible.
+    try {
+      await file.slice(0, Math.min(1024, file.size)).arrayBuffer();
+    } catch (e) {
+      throw Object.assign(
+        new Error('Fichier devenu illisible par le navigateur — resélectionnez-le'),
+        { unreadable: true },
+      );
+    }
+
     const authHeader = { Authorization: `Bearer ${getToken()}` };
     const started = Date.now();
     const report = (loaded) => {
@@ -140,9 +153,15 @@ export const UploadProvider = ({ children }) => {
       if (item.canceled) { patch(item.id, { status: 'canceled' }); currentRef.current = null; continue; }
       try {
         await runItem(item);
+        // Transfert réussi : on libère la référence au fichier (mémoire mobile).
+        item.file = null;
+        itemsRef.current.delete(item.id);
       } catch (err) {
         if (err.canceled || item.canceled) {
           patch(item.id, { status: 'canceled' });
+        } else if (err.unreadable) {
+          // Inutile de réessayer : le fichier n'est plus lisible, il faut le resélectionner.
+          patch(item.id, { status: 'error', error: err.message });
         } else {
           // Reprise automatique de tout le fichier (avec resume) : sur mobile, une
           // coupure réseau est fréquente et transitoire -> on relance sans intervention.
@@ -165,7 +184,12 @@ export const UploadProvider = ({ children }) => {
   pumpRef.current = pump;
 
   const enqueue = useCallback((activityId, files) => {
-    const items = Array.from(files).map((file) => ({ id: ++counter, activityId, file, canceled: false, xhr: null }));
+    // Les plus petits d'abord : une très grosse vidéo peut épuiser l'accès aux
+    // fichiers côté navigateur (mobile) ; en la passant en dernier, elle ne
+    // compromet plus les transferts suivants.
+    const items = Array.from(files)
+      .sort((a, b) => a.size - b.size)
+      .map((file) => ({ id: ++counter, activityId, file, canceled: false, xhr: null }));
     items.forEach((it) => itemsRef.current.set(it.id, it));
     setUploads((prev) => [
       ...prev,
